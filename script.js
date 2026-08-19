@@ -42,10 +42,11 @@
     if(!all[containerId]) all[containerId] = {};
     if(!all[containerId][dateStr]) all[containerId][dateStr] = {};
     all[containerId][dateStr][time] = {
-      nome: dados.nome,
-      contato: dados.contato,
-      aceitouTermo: true,
-      criadoEm: new Date().toISOString()
+       nome: dados.nome,
+       contato: dados.contato,
+       cracha: dados.cracha,
+       aceitouTermo: true,
+       criadoEm: new Date().toISOString()
     };
     localStorage.setItem(BOOKINGS_KEY, JSON.stringify(all));
   }
@@ -62,6 +63,9 @@
         <h3 id="bookingModalTitle">Confirmar agendamento</h3>
         <p class="modal-subtitle" id="bookingModalSubtitle"></p>
         <form id="bookingForm" novalidate>
+          <label class="field-label" for="bookingCracha">Número do crachá</label>
+          <input type="text" id="bookingCracha" name="cracha" required inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ex: 0123">
+          
           <label class="field-label" for="bookingNome">Nome completo</label>
           <input type="text" id="bookingNome" name="nome" required autocomplete="name" placeholder="Seu nome">
 
@@ -86,6 +90,9 @@
       if(e.target === overlay) closeBookingModal();
     });
     document.getElementById('bookingModalClose').addEventListener('click', closeBookingModal);
+    document.getElementById('bookingCracha').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+    });
   }
 
   function openBookingModal(subtitle, onConfirm){
@@ -103,10 +110,11 @@
       e.preventDefault();
       const nome = document.getElementById('bookingNome').value.trim();
       const contato = document.getElementById('bookingContato').value.trim();
+      const cracha = document.getElementById('bookingCracha').value.trim();
       const aceitou = document.getElementById('bookingTermo').checked;
 
-      if(!nome || !contato){
-        errorEl.textContent = 'Preencha nome e telefone/WhatsApp para continuar.';
+      if(!nome || !contato || !cracha){
+        errorEl.textContent = 'Preencha nome, telefone/WhatsApp e número do crachá.';
         return;
       }
       if(!aceitou){
@@ -114,7 +122,7 @@
         return;
       }
       closeBookingModal();
-      onConfirm({ nome, contato });
+      onConfirm({ nome, contato, cracha });
     };
   }
 
@@ -145,6 +153,152 @@
       toast.classList.remove('show');
     }, 3200);
   }
+  // ---- Cards de eventos ----
+  const eventCards = [
+    { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social" },
+    { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque" },
+    { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas" },
+    { id: "sinuca-ago", img: "images/Sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos" },
+  ];
+
+  function renderEventCards(){
+    const grid = document.getElementById('eventCardsGrid');
+    if(!grid) return;
+    const savedJoins = loadEventJoins();
+    grid.innerHTML = eventCards.map(ev => {
+      const jaConfirmado = !!(savedJoins[ev.id]);
+      return `
+        <article class="event-card">
+          <img src="${ev.img}" alt="${ev.title}" loading="lazy">
+          <div class="event-card-body">
+            <h3 class="event-card-title">${ev.title}</h3>
+            <p class="event-card-time">${ev.time}</p>
+            <button type="button" class="book-btn event-join-btn" data-event-id="${ev.id}" ${jaConfirmado ? 'disabled' : ''}>
+              ${jaConfirmado ? 'Presença confirmada' : 'Participar'}
+            </button>
+          </div>
+        </article>`;
+    }).join('');
+
+    grid.querySelectorAll('.event-join-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ev = eventCards.find(e => e.id === btn.dataset.eventId);
+        if(!ev) return;
+        openEventModal(`${ev.title} — ${ev.time}`, (dados) => {
+          saveEventJoin(ev.id, dados);
+          renderEventCards();
+          showSuccessToast(`Agendamento concluído! Presença confirmada em "${ev.title}".`);
+        });
+      });
+    });
+  }
+
+  // ---- Persistência das participações em eventos ----
+  const EVENT_JOINS_KEY = 'miracema-eventos-participacoes';
+
+  function loadEventJoins(){
+    try{
+      return JSON.parse(localStorage.getItem(EVENT_JOINS_KEY)) || {};
+    }catch(e){
+      return {};
+    }
+  }
+  function saveEventJoin(eventId, dados){
+    const all = loadEventJoins();
+    all[eventId] = {
+      nome: dados.nome,
+      contato: dados.contato,
+      cracha: dados.cracha,
+      aceitouTermo: true,
+      criadoEm: new Date().toISOString()
+    };
+    localStorage.setItem(EVENT_JOINS_KEY, JSON.stringify(all));
+  }
+
+  // ---- Modal de participação em evento (mesmos dados do agendamento + crachá) ----
+  function ensureEventModal(){
+    if(document.getElementById('eventModalOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'eventModalOverlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+        <button type="button" class="modal-close" id="eventModalClose" aria-label="Fechar">&times;</button>
+        <h3 id="eventModalTitle">Confirmar participação</h3>
+        <p class="modal-subtitle" id="eventModalSubtitle"></p>
+        <form id="eventJoinForm" novalidate>
+          <label class="field-label" for="eventCracha">Número do crachá</label>
+          <input type="text" id="eventCracha" name="cracha" required inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ex: 0123">
+
+          <label class="field-label" for="eventNome">Nome completo</label>
+          <input type="text" id="eventNome" name="nome" required autocomplete="name" placeholder="Seu nome">
+
+          <label class="field-label" for="eventContato">Telefone / WhatsApp</label>
+          <input type="tel" id="eventContato" name="contato" required autocomplete="tel" placeholder="(19) 99999-9999">
+
+          <div class="term-box">
+            <p><strong>Termo de agendamento:</strong> ao confirmar, você reserva sua participação neste evento em seu nome. Chegue com até 10 minutos de antecedência; atrasos superiores a 15 minutos podem causar perda da vaga. Cancelamentos devem ser avisados com pelo menos 4 horas de antecedência pela recepção do Grêmio.</p>
+          </div>
+          <label class="checkbox-row" for="eventTermo">
+            <input type="checkbox" id="eventTermo" name="termo" required>
+            <span>Li e aceito o termo de agendamento acima.</span>
+          </label>
+
+          <p class="form-error" id="eventFormError"></p>
+          <button type="submit" class="book-btn" id="eventConfirmBtn">Confirmar participação</button>
+        </form>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if(e.target === overlay) closeEventModal();
+    });
+    document.getElementById('eventModalClose').addEventListener('click', closeEventModal);
+    document.getElementById('eventCracha').addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+    });
+  }
+
+  function openEventModal(subtitle, onConfirm){
+    ensureEventModal();
+    const overlay = document.getElementById('eventModalOverlay');
+    const form = document.getElementById('eventJoinForm');
+    const errorEl = document.getElementById('eventFormError');
+    document.getElementById('eventModalSubtitle').textContent = subtitle;
+    form.reset();
+    errorEl.textContent = '';
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const nome = document.getElementById('eventNome').value.trim();
+      const contato = document.getElementById('eventContato').value.trim();
+      const cracha = document.getElementById('eventCracha').value.trim();
+      const aceitou = document.getElementById('eventTermo').checked;
+
+      if(!nome || !contato || !cracha){
+        errorEl.textContent = 'Preencha nome, telefone/WhatsApp e número do crachá.';
+        return;
+      }
+      if(!aceitou){
+        errorEl.textContent = 'É preciso aceitar o termo de agendamento para confirmar.';
+        return;
+      }
+      closeEventModal();
+      onConfirm({ nome, contato, cracha });
+    };
+  }
+
+  function closeEventModal(){
+    const overlay = document.getElementById('eventModalOverlay');
+    if(overlay){
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  }
+
+  renderEventCards();
 
   // ---- Calendars ----
   const DOW = ["D","S","T","Q","Q","S","S"];

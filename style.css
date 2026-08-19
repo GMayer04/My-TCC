@@ -533,7 +533,9 @@
     margin:14px 0 6px;
   }
   #bookingForm input[type="text"],
-  #bookingForm input[type="tel"]{
+  #bookingForm input[type="tel"],
+  #eventJoinForm input[type="text"],
+  #eventJoinForm input[type="tel"]{
     width:100%;
     padding:11px 13px;
     border-radius:10px;
@@ -543,7 +545,9 @@
     color:var(--ink);
   }
   #bookingForm input[type="text"]:focus,
-  #bookingForm input[type="tel"]:focus{
+  #bookingForm input[type="tel"]:focus,
+  #eventJoinForm input[type="text"]:focus,
+  #eventJoinForm input[type="tel"]:focus{
     outline:none;
     border-color:var(--green-bright);
   }
@@ -575,7 +579,8 @@
     margin-top:10px;
     min-height:14px;
   }
-  #bookingForm .book-btn{margin-top:16px;}
+  #bookingForm .book-btn,
+  #eventJoinForm .book-btn{margin-top:16px;}
 
   /* ===== POPUP DE SUCESSO ===== */
   .success-toast{
@@ -611,4 +616,44 @@
     display:flex; align-items:center; justify-content:center;
     font-size:13px;
     flex-shrink:0;
+  }
+
+  /* ===== CARDS DE EVENTOS ===== */
+  .event-cards-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+    gap:20px;
+  }
+  .event-card{
+    background:#fff;
+    border-radius:var(--radius);
+    overflow:hidden;
+    box-shadow:var(--shadow);
+    display:flex;
+    flex-direction:column;
+  }
+  .event-card img{
+    width:100%;
+    height:150px;
+    object-fit:cover;
+    background:var(--green-light);
+  }
+  .event-card-body{
+    padding:16px 18px 20px;
+  }
+  .event-card-title{
+    font-size:16px;
+    font-weight:700;
+    color:var(--ink);
+    margin-bottom:4px;
+    text-transform:none;
+    font-family:'Work Sans', sans-serif;
+  }
+  .event-card-time{
+    font-size:12.5px;
+    color:var(--grey);
+    margin-bottom:14px;
+  }
+  .event-join-btn{
+    background:var(--green-deep);
   }
