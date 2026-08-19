@@ -158,7 +158,7 @@
     { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social" },
     { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque" },
     { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas" },
-    { id: "sinuca-ago", img: "images/Sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos" },
+    { id: "sinuca-ago", img: "images/sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos" },
   ];
 
   function renderEventCards(){
