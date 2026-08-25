@@ -155,27 +155,23 @@
   }
   // ---- Cards de eventos ----
   const eventCards = [
-    { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social" },
-    { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque" },
-    { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas" },
-    { id: "sinuca-ago", img: "images/sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos" },
+    { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social", link: "" },
+    { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque", link: "" },
+    { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas", link: "" },
+    { id: "sinuca-ago", img: "images/Sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos", link: "" },
   ];
 
   function renderEventCards(){
     const grid = document.getElementById('eventCardsGrid');
     if(!grid) return;
-    const savedJoins = loadEventJoins();
     grid.innerHTML = eventCards.map(ev => {
-      const jaConfirmado = !!(savedJoins[ev.id]);
       return `
         <article class="event-card">
           <img src="${ev.img}" alt="${ev.title}" loading="lazy">
           <div class="event-card-body">
             <h3 class="event-card-title">${ev.title}</h3>
             <p class="event-card-time">${ev.time}</p>
-            <button type="button" class="book-btn event-join-btn" data-event-id="${ev.id}" ${jaConfirmado ? 'disabled' : ''}>
-              ${jaConfirmado ? 'Presença confirmada' : 'Participar'}
-            </button>
+            <button type="button" class="book-btn event-join-btn" data-event-id="${ev.id}">Participar</button>
           </div>
         </article>`;
     }).join('');
@@ -184,118 +180,13 @@
       btn.addEventListener('click', () => {
         const ev = eventCards.find(e => e.id === btn.dataset.eventId);
         if(!ev) return;
-        openEventModal(`${ev.title} — ${ev.time}`, (dados) => {
-          saveEventJoin(ev.id, dados);
-          renderEventCards();
-          showSuccessToast(`Agendamento concluído! Presença confirmada em "${ev.title}".`);
-        });
+        if(!ev.link){
+          console.warn(`Link do evento "${ev.title}" ainda não foi definido.`);
+          return;
+        }
+        window.open(ev.link, '_blank');
       });
     });
-  }
-
-  // ---- Persistência das participações em eventos ----
-  const EVENT_JOINS_KEY = 'miracema-eventos-participacoes';
-
-  function loadEventJoins(){
-    try{
-      return JSON.parse(localStorage.getItem(EVENT_JOINS_KEY)) || {};
-    }catch(e){
-      return {};
-    }
-  }
-  function saveEventJoin(eventId, dados){
-    const all = loadEventJoins();
-    all[eventId] = {
-      nome: dados.nome,
-      contato: dados.contato,
-      cracha: dados.cracha,
-      aceitouTermo: true,
-      criadoEm: new Date().toISOString()
-    };
-    localStorage.setItem(EVENT_JOINS_KEY, JSON.stringify(all));
-  }
-
-  // ---- Modal de participação em evento (mesmos dados do agendamento + crachá) ----
-  function ensureEventModal(){
-    if(document.getElementById('eventModalOverlay')) return;
-    const overlay = document.createElement('div');
-    overlay.id = 'eventModalOverlay';
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
-        <button type="button" class="modal-close" id="eventModalClose" aria-label="Fechar">&times;</button>
-        <h3 id="eventModalTitle">Confirmar participação</h3>
-        <p class="modal-subtitle" id="eventModalSubtitle"></p>
-        <form id="eventJoinForm" novalidate>
-          <label class="field-label" for="eventCracha">Número do crachá</label>
-          <input type="text" id="eventCracha" name="cracha" required inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ex: 0123">
-
-          <label class="field-label" for="eventNome">Nome completo</label>
-          <input type="text" id="eventNome" name="nome" required autocomplete="name" placeholder="Seu nome">
-
-          <label class="field-label" for="eventContato">Telefone / WhatsApp</label>
-          <input type="tel" id="eventContato" name="contato" required autocomplete="tel" placeholder="(19) 99999-9999">
-
-          <div class="term-box">
-            <p><strong>Termo de agendamento:</strong> ao confirmar, você reserva sua participação neste evento em seu nome. Chegue com até 10 minutos de antecedência; atrasos superiores a 15 minutos podem causar perda da vaga. Cancelamentos devem ser avisados com pelo menos 4 horas de antecedência pela recepção do Grêmio.</p>
-          </div>
-          <label class="checkbox-row" for="eventTermo">
-            <input type="checkbox" id="eventTermo" name="termo" required>
-            <span>Li e aceito o termo de agendamento acima.</span>
-          </label>
-
-          <p class="form-error" id="eventFormError"></p>
-          <button type="submit" class="book-btn" id="eventConfirmBtn">Confirmar participação</button>
-        </form>
-      </div>`;
-    document.body.appendChild(overlay);
-
-    overlay.addEventListener('click', (e) => {
-      if(e.target === overlay) closeEventModal();
-    });
-    document.getElementById('eventModalClose').addEventListener('click', closeEventModal);
-    document.getElementById('eventCracha').addEventListener('input', (e) => {
-      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
-    });
-  }
-
-  function openEventModal(subtitle, onConfirm){
-    ensureEventModal();
-    const overlay = document.getElementById('eventModalOverlay');
-    const form = document.getElementById('eventJoinForm');
-    const errorEl = document.getElementById('eventFormError');
-    document.getElementById('eventModalSubtitle').textContent = subtitle;
-    form.reset();
-    errorEl.textContent = '';
-    overlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-
-    form.onsubmit = (e) => {
-      e.preventDefault();
-      const nome = document.getElementById('eventNome').value.trim();
-      const contato = document.getElementById('eventContato').value.trim();
-      const cracha = document.getElementById('eventCracha').value.trim();
-      const aceitou = document.getElementById('eventTermo').checked;
-
-      if(!nome || !contato || !cracha){
-        errorEl.textContent = 'Preencha nome, telefone/WhatsApp e número do crachá.';
-        return;
-      }
-      if(!aceitou){
-        errorEl.textContent = 'É preciso aceitar o termo de agendamento para confirmar.';
-        return;
-      }
-      closeEventModal();
-      onConfirm({ nome, contato, cracha });
-    };
-  }
-
-  function closeEventModal(){
-    const overlay = document.getElementById('eventModalOverlay');
-    if(overlay){
-      overlay.classList.remove('open');
-      document.body.style.overflow = '';
-    }
   }
 
   renderEventCards();
@@ -304,60 +195,83 @@
   const DOW = ["D","S","T","Q","Q","S","S"];
   const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
+  function todayDateOnly(){
+    const d = new Date();
+    d.setHours(0,0,0,0);
+    return d;
+  }
+  function formatDateStr(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+  function firstWeekday(y,m){ return new Date(y, m, 1).getDay(); }
+
   function buildCalendar(containerId, config){
     const container = document.getElementById(containerId);
-    let state = { year: config.year, month: config.month, selected: null, selectedTime: null };
+    const today0 = todayDateOnly();
+    let state = { year: today0.getFullYear(), month: today0.getMonth(), selected: null, selectedTime: null };
+    let lastKnownToday = formatDateStr(today0);
 
-    // aplica agendamentos já salvos (localStorage) por cima dos dados padrão
-    const saved = loadBookings()[containerId] || {};
-    Object.keys(saved).forEach(dateStr => {
-      if(!config.slots[dateStr]) return;
-      Object.keys(saved[dateStr]).forEach(time => {
-        const slot = config.slots[dateStr].find(s => s.time === time);
-        if(slot) slot.taken = true;
-      });
-    });
-
-    function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
-    function firstWeekday(y,m){ return new Date(y, m, 1).getDay(); }
-
-    function isDayFullyBooked(dateStr){
-      const daySlots = config.slots[dateStr];
-      if(!daySlots || !daySlots.length) return false;
-      return daySlots.every(s => s.taken);
+    function getSlotsFromTemplate(template, dateStr){
+      const savedDay = (loadBookings()[containerId] || {})[dateStr] || {};
+      return (template || []).map(time => ({ time, taken: !!savedDay[time] }));
+    }
+    function getSlotsForDate(dateStr){
+      return getSlotsFromTemplate(config.slotsTemplate, dateStr);
+    }
+    function getNoiteSlotsForDate(dateStr){
+      return getSlotsFromTemplate(config.slotsNoite, dateStr);
     }
 
-    function dayStatus(dateStr){
-      if(config.full.includes(dateStr) || isDayFullyBooked(dateStr)) return "full";
-      if(config.available.includes(dateStr)) return "available";
-      return "closed";
+    function dayStatus(date, dateStr){
+      const today = todayDateOnly();
+      if(date < today) return "past"; // dias anteriores a hoje: sempre indisponíveis
+      const endOfWeek = new Date(today);
+      endOfWeek.setDate(today.getDate() + (6 - today.getDay())); // sábado da semana vigente
+      if(date > endOfWeek) return "closed"; // além da semana atual: travado
+      const weekday = date.getDay();
+      if(!(config.openWeekdays || []).includes(weekday)) return "closed";
+      const slots = getSlotsForDate(dateStr).concat(getNoiteSlotsForDate(dateStr));
+      if(slots.length && slots.every(s => s.taken)) return "full";
+      return "available";
     }
 
     function render(){
       const y = state.year, m = state.month;
       const total = daysInMonth(y,m);
       const startDow = firstWeekday(y,m);
-      const todayStr = new Date().toISOString().slice(0,10);
+      const todayStr = formatDateStr(todayDateOnly());
+
+      // se o dia selecionado ficou no passado (ex: virou meia-noite com o modal aberto), limpa a seleção
+      if(state.selected && state.selected < todayStr){
+        state.selected = null;
+        state.selectedTime = null;
+      }
 
       let dowHtml = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('');
       let cellsHtml = '';
       for(let i=0;i<startDow;i++){ cellsHtml += `<div class="cal-day empty"></div>`; }
       for(let d=1; d<=total; d++){
-        const mm = String(m+1).padStart(2,'0');
-        const dd = String(d).padStart(2,'0');
-        const dateStr = `${y}-${mm}-${dd}`;
-        const status = dayStatus(dateStr);
+        const date = new Date(y, m, d);
+        const dateStr = formatDateStr(date);
+        const status = dayStatus(date, dateStr);
         const isToday = dateStr === todayStr;
         const isSelected = dateStr === state.selected;
         let cls = "cal-day";
         if(status === "available") cls += " available";
         if(status === "full") cls += " full";
+        if(status === "past") cls += " past";
         if(isToday) cls += " today";
         if(isSelected) cls += " selected";
-        cellsHtml += `<button type="button" class="${cls}" data-date="${dateStr}" data-status="${status}" ${status==="closed"?"disabled":""}>${d}</button>`;
+        const disabled = status !== "available";
+        cellsHtml += `<button type="button" class="${cls}" data-date="${dateStr}" data-status="${status}" ${disabled ? "disabled" : ""}>${d}</button>`;
       }
 
-      const slotsForSelected = state.selected ? (config.slots[state.selected] || []) : null;
+      const slotsForSelected = state.selected ? getSlotsForDate(state.selected) : null;
+      const noiteSlotsForSelected = state.selected ? getNoiteSlotsForDate(state.selected) : null;
       let slotsHtml = '';
       if(state.selected && slotsForSelected){
         slotsHtml = `
@@ -366,6 +280,11 @@
             <div class="slots">
               ${slotsForSelected.map(s => `<button type="button" class="slot ${s.taken ? 'taken':'free'} ${state.selectedTime===s.time?'chosen':''}" data-time="${s.time}" ${s.taken?'disabled':''}>${s.time}</button>`).join('')}
             </div>
+            ${noiteSlotsForSelected && noiteSlotsForSelected.length ? `
+              <h4 class="slots-subtitle">Noite</h4>
+              <div class="slots">
+                ${noiteSlotsForSelected.map(s => `<button type="button" class="slot ${s.taken ? 'taken':'free'} ${state.selectedTime===s.time?'chosen':''}" data-time="${s.time}" ${s.taken?'disabled':''}>${s.time}</button>`).join('')}
+              </div>` : ''}
             <button class="book-btn" type="button" id="bookBtn-${containerId}" ${state.selectedTime ? '' : 'disabled'}>
               ${state.selectedTime ? 'Agendar horário de ' + state.selectedTime : 'Escolha um horário acima'}
             </button>
@@ -421,62 +340,44 @@
         bookBtn.addEventListener('click', () => {
           if(!state.selected || !state.selectedTime) return;
           const dataFormatada = state.selected.split('-').reverse().join('/');
+          const horarioEscolhido = state.selectedTime;
           openBookingModal(
-            `${config.serviceName || 'Serviço'} — ${dataFormatada} às ${state.selectedTime}`,
+            `${config.serviceName || 'Serviço'} — ${dataFormatada} às ${horarioEscolhido}`,
             (dados) => {
-              // marca o horário como indisponível
-              const slot = (config.slots[state.selected] || []).find(s => s.time === state.selectedTime);
-              if(slot) slot.taken = true;
-              saveBooking(containerId, state.selected, state.selectedTime, dados);
-
+              saveBooking(containerId, state.selected, horarioEscolhido, dados);
               state.selectedTime = null;
               render();
-              showSuccessToast(`Agendamento concluído! Te esperamos em ${dataFormatada} às ${slot ? slot.time : ''}.`);
+              showSuccessToast(`Agendamento concluído! Te esperamos em ${dataFormatada} às ${horarioEscolhido}.`);
             }
           );
         });
       }
     }
+
     render();
+
+    // ---- Atualização automática: se a aba ficar aberta e o dia virar (meia-noite), recalcula sozinho ----
+    setInterval(() => {
+      const currentToday = formatDateStr(todayDateOnly());
+      if(currentToday !== lastKnownToday){
+        lastKnownToday = currentToday;
+        render();
+      }
+    }, 60000);
   }
 
-  // Manicure: quarta, quinta e sábado disponíveis em agosto/2026
+  // Manicure: quarta, quinta e sábado
   buildCalendar('cal-manicure', {
     serviceName: 'Manicure',
-    year: 2026, month: 7, // agosto (0-indexed)
-    available: ["2026-08-05","2026-08-06","2026-08-08","2026-08-12","2026-08-13","2026-08-15","2026-08-19","2026-08-20","2026-08-22","2026-08-26","2026-08-27","2026-08-29"],
-    full: ["2026-08-01","2026-08-08"],
-    slots: {
-      "2026-08-05":[{time:"09:00"},{time:"10:00",taken:true},{time:"11:00"},{time:"14:00"},{time:"15:00",taken:true},{time:"16:00"}],
-      "2026-08-06":[{time:"09:00",taken:true},{time:"10:00"},{time:"11:00"},{time:"14:00"},{time:"15:00"}],
-      "2026-08-12":[{time:"09:00"},{time:"10:00"},{time:"11:00",taken:true},{time:"14:00"},{time:"15:00"}],
-      "2026-08-13":[{time:"09:00"},{time:"10:00"},{time:"14:00",taken:true},{time:"16:00"}],
-      "2026-08-15":[{time:"09:00"},{time:"10:00"},{time:"11:00"},{time:"12:00"}],
-      "2026-08-19":[{time:"09:00"},{time:"10:00",taken:true},{time:"14:00"},{time:"15:00"}],
-      "2026-08-20":[{time:"09:00"},{time:"11:00"},{time:"14:00"},{time:"16:00",taken:true}],
-      "2026-08-22":[{time:"09:00"},{time:"10:00"},{time:"11:00"},{time:"12:00"}],
-      "2026-08-26":[{time:"09:00",taken:true},{time:"10:00"},{time:"14:00"}],
-      "2026-08-27":[{time:"09:00"},{time:"10:00"},{time:"11:00"},{time:"15:00"}],
-      "2026-08-29":[{time:"09:00"},{time:"10:00"},{time:"11:00"},{time:"12:00"}],
-    }
+    openWeekdays: [3,4,6], // quarta, quinta, sábado
+    slotsTemplate: ["11:00","11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
+    slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
   });
 
-  // Massagem: terça, quinta e sexta disponíveis em agosto/2026
+  // Massagem: terça, quinta e sexta
   buildCalendar('cal-massage', {
     serviceName: 'Massagem',
-    year: 2026, month: 7,
-    available: ["2026-08-04","2026-08-06","2026-08-07","2026-08-11","2026-08-13","2026-08-14","2026-08-18","2026-08-20","2026-08-21","2026-08-25","2026-08-27","2026-08-28"],
-    full: ["2026-08-14","2026-08-28"],
-    slots: {
-      "2026-08-04":[{time:"10:00"},{time:"11:00",taken:true},{time:"15:00"},{time:"16:00"}],
-      "2026-08-06":[{time:"10:00"},{time:"11:00"},{time:"15:00",taken:true},{time:"17:00"}],
-      "2026-08-07":[{time:"10:00"},{time:"11:00"},{time:"15:00"},{time:"16:00"}],
-      "2026-08-11":[{time:"10:00",taken:true},{time:"11:00"},{time:"16:00"}],
-      "2026-08-13":[{time:"10:00"},{time:"11:00"},{time:"15:00"},{time:"16:00",taken:true}],
-      "2026-08-18":[{time:"10:00"},{time:"11:00"},{time:"15:00"}],
-      "2026-08-20":[{time:"10:00"},{time:"11:00",taken:true},{time:"16:00"},{time:"17:00"}],
-      "2026-08-21":[{time:"10:00"},{time:"11:00"},{time:"15:00"},{time:"16:00"}],
-      "2026-08-25":[{time:"10:00"},{time:"15:00"},{time:"16:00"}],
-      "2026-08-27":[{time:"10:00"},{time:"11:00"},{time:"15:00"},{time:"16:00"}],
-    }
+    openWeekdays: [2,4,5], // terça, quinta, sexta
+    slotsTemplate: ["11:00","11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
+    slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
   });
