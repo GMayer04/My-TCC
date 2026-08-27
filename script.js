@@ -117,7 +117,7 @@
           </div>
           <label class="checkbox-row" for="bookingTermo">
             <input type="checkbox" id="bookingTermo" name="termo" required>
-            <span>Li e aceito o termo de agendamento acima.</span>
+            <span>Li e aceito o termo de agendamento acima, bem como os ressarcimentos nele descritos.</span>
           </label>
 
           <p class="form-error" id="bookingFormError"></p>
@@ -133,6 +133,14 @@
     document.getElementById('bookingCracha').addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
     });
+    document.getElementById('bookingContato').addEventListener('input', (e) => {
+    let numeros = e.target.value.replace(/\D/g, '').slice(0, 11); // só dígitos, no máximo 11 (DDD + 9 dígitos)
+    let formatado = numeros;
+    if(numeros.length > 0) formatado = '(' + numeros.slice(0, 2);
+    if(numeros.length >= 3) formatado += ') ' + numeros.slice(2, 7);
+    if(numeros.length >= 8) formatado += '-' + numeros.slice(7, 11);
+    e.target.value = formatado;
+});
   }
 
   function openBookingModal(subtitle, onConfirm){
