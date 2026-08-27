@@ -6,50 +6,90 @@
     navToggle.setAttribute('aria-expanded', open);
   });
 
-  // ---- News ticker: próximos eventos do grêmio ----
-  const events = [
-    { date: "02 AGO", text: "Torneio de dominó — Salão Social, 19h" },
-    { date: "08 AGO", text: "Feijoada dos sócios — Quiosque, 12h" },
-    { date: "15 AGO", text: "Noite do karaokê — Salão Festas, 20h" },
-    { date: "22 AGO", text: "Campeonato de sinuca — Sala de Jogos" },
-    { date: "29 AGO", text: "Aula aberta de dança — Salão Social, 18h30" },
-    { date: "05 SET", text: "Assembleia geral de sócios — Auditório, 19h" },
-  ];
+  // ---- News ticker: próximos eventos do grêmio (gerado a partir dos cards de eventos) ----
   const track = document.getElementById('tickerTrack');
+
+  function parseEventDateAndDetail(timeStr){
+    // separa a data do resto da string, ex: "02 AGO · 19h — Salão Social" ou "22 AGO — Sala de Jogos"
+    const dotIndex = timeStr.indexOf('·');
+    const dashIndex = timeStr.indexOf('—');
+    let cutIndex = -1;
+    if(dotIndex !== -1 && (dashIndex === -1 || dotIndex < dashIndex)) cutIndex = dotIndex;
+    else if(dashIndex !== -1) cutIndex = dashIndex;
+    if(cutIndex === -1) return { date: timeStr.trim(), detail: '' };
+    return {
+      date: timeStr.slice(0, cutIndex).trim(),
+      detail: timeStr.slice(cutIndex + 1).trim()
+    };
+  }
+
   function renderTicker(){
-    const html = events.map(e => `
-      <div class="ticker-item">
-        <span class="date-chip">${e.date}</span>
-        <span>${e.text}</span>
-      </div>`).join('');
+    const html = eventCards.map(ev => {
+      const { date, detail } = parseEventDateAndDetail(ev.time);
+      return `
+        <div class="ticker-item">
+          <span class="date-chip">${date}</span>
+          <span>${ev.title}${detail ? ' — ' + detail : ''}</span>
+        </div>`;
+    }).join('');
     // duplicate for seamless loop
     track.innerHTML = html + html;
   }
-  renderTicker();
 
-  // ---- Persistência dos agendamentos (localStorage) ----
-  const BOOKINGS_KEY = 'miracema-agendamentos';
+  // ---- Persistência dos agendamentos (Firestore, em tempo real) ----
+  // "vagas" = coleção pública, só trava o horário (sem dados pessoais) — o calendário lê daqui
+  // "agendamentos" = coleção privada, com nome/contato/crachá — só admin autenticado consegue ler
+  let bookingsCache = {}; // cópia local da coleção "vagas", mantida em sincronia com o Firestore
+  const calendarRenderers = []; // cada calendário registra sua função de render aqui
 
   function loadBookings(){
-    try{
-      return JSON.parse(localStorage.getItem(BOOKINGS_KEY)) || {};
-    }catch(e){
-      return {};
+    return bookingsCache; // sempre lê da cópia local (atualizada pelo listener abaixo)
+  }
+
+  async function saveBooking(containerId, dateStr, time, dados){
+    const criadoEm = window.fbServerTimestamp();
+    await Promise.all([
+      // registro público: só o essencial pra travar o horário no calendário
+      window.fbAddDoc(window.fbCollection(window.db, 'vagas'), {
+        servico: containerId,
+        data: dateStr,
+        horario: time,
+        criadoEm
+      }),
+      // registro privado: dados completos, só o admin consegue ler depois
+      window.fbAddDoc(window.fbCollection(window.db, 'agendamentos'), {
+        servico: containerId,
+        data: dateStr,
+        horario: time,
+        nome: dados.nome,
+        contato: dados.contato,
+        cracha: dados.cracha,
+        aceitouTermo: true,
+        criadoEm
+      })
+    ]);
+    // não precisa atualizar bookingsCache na mão: o onSnapshot abaixo detecta e já atualiza sozinho
+  }
+
+  function iniciarEscutaAgendamentos(){
+    if(!window.db){
+      setTimeout(iniciarEscutaAgendamentos, 200); // Firebase ainda carregando, tenta de novo
+      return;
     }
+    const ref = window.fbCollection(window.db, 'vagas'); // lê da coleção pública (sem dados pessoais)
+    window.fbOnSnapshot(ref, (snapshot) => {
+      const novoCache = {};
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        if(!novoCache[d.servico]) novoCache[d.servico] = {};
+        if(!novoCache[d.servico][d.data]) novoCache[d.servico][d.data] = {};
+        novoCache[d.servico][d.data][d.horario] = { taken: true };
+      });
+      bookingsCache = novoCache;
+      calendarRenderers.forEach(fn => fn()); // re-renderiza os calendários com os dados atualizados
+    });
   }
-  function saveBooking(containerId, dateStr, time, dados){
-    const all = loadBookings();
-    if(!all[containerId]) all[containerId] = {};
-    if(!all[containerId][dateStr]) all[containerId][dateStr] = {};
-    all[containerId][dateStr][time] = {
-       nome: dados.nome,
-       contato: dados.contato,
-       cracha: dados.cracha,
-       aceitouTermo: true,
-       criadoEm: new Date().toISOString()
-    };
-    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(all));
-  }
+  iniciarEscutaAgendamentos();
 
   // ---- Modal de dados + termo de agendamento ----
   function ensureBookingModal(){
@@ -153,6 +193,7 @@
       toast.classList.remove('show');
     }, 3200);
   }
+
   // ---- Cards de eventos ----
   const eventCards = [
     { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social", link: "" },
@@ -190,6 +231,7 @@
   }
 
   renderEventCards();
+  renderTicker();
 
   // ---- Calendars ----
   const DOW = ["D","S","T","Q","Q","S","S"];
@@ -343,11 +385,16 @@
           const horarioEscolhido = state.selectedTime;
           openBookingModal(
             `${config.serviceName || 'Serviço'} — ${dataFormatada} às ${horarioEscolhido}`,
-            (dados) => {
-              saveBooking(containerId, state.selected, horarioEscolhido, dados);
-              state.selectedTime = null;
-              render();
-              showSuccessToast(`Agendamento concluído! Te esperamos em ${dataFormatada} às ${horarioEscolhido}.`);
+            async (dados) => {
+              try{
+                await saveBooking(containerId, state.selected, horarioEscolhido, dados);
+                state.selectedTime = null;
+                showSuccessToast(`Agendamento concluído! Te esperamos em ${dataFormatada} às ${horarioEscolhido}.`);
+                // não precisa chamar render() aqui: o listener do Firestore atualiza sozinho quando o dado chegar
+              }catch(err){
+                console.error('Erro ao salvar agendamento no Firestore:', err);
+                showSuccessToast('Ops! Não foi possível salvar seu agendamento. Tente novamente.');
+              }
             }
           );
         });
@@ -355,6 +402,7 @@
     }
 
     render();
+    calendarRenderers.push(render); // permite que o listener do Firestore atualize esse calendário
 
     // ---- Atualização automática: se a aba ficar aberta e o dia virar (meia-noite), recalcula sozinho ----
     setInterval(() => {
@@ -366,18 +414,18 @@
     }, 60000);
   }
 
-  // Manicure: quarta, quinta e sábado
+  // Manicure: terça, quinta
   buildCalendar('cal-manicure', {
     serviceName: 'Manicure',
-    openWeekdays: [3,4,6], // quarta, quinta, sábado
-    slotsTemplate: ["11:00","11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
+    openWeekdays: [2,4,], // terça, quinta
+    slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
     slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
   });
 
-  // Massagem: terça, quinta e sexta
+  // Massagem: segunda, quarta
   buildCalendar('cal-massage', {
     serviceName: 'Massagem',
-    openWeekdays: [2,4,5], // terça, quinta, sexta
-    slotsTemplate: ["11:00","11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
+    openWeekdays: [1,3,], // segunda, quarta
+    slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
     slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
   });
