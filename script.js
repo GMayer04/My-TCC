@@ -91,6 +91,20 @@
   let bookingsCache = {}; // cópia local da coleção "vagas", mantida em sincronia com o Firestore
   const calendarRenderers = []; // cada calendário registra sua função de render aqui
 
+  // ---- Controle de "já agendou": depois de 1 agendamento, trava os calendários pra essa pessoa ----
+  const MEU_AGENDAMENTO_KEY = 'miracema-meu-agendamento';
+  function getMeuAgendamento(){
+    try{
+      return JSON.parse(localStorage.getItem(MEU_AGENDAMENTO_KEY));
+    }catch(e){
+      return null;
+    }
+  }
+  function setMeuAgendamento(info){
+    localStorage.setItem(MEU_AGENDAMENTO_KEY, JSON.stringify(info));
+    calendarRenderers.forEach(fn => fn()); // trava os dois calendários na hora, sem esperar o Firestore
+  }
+
   function loadBookings(){
     return bookingsCache; // sempre lê da cópia local (atualizada pelo listener abaixo)
   }
@@ -162,11 +176,12 @@
           <input type="tel" id="bookingContato" name="contato" required autocomplete="tel" placeholder="(19) 99999-9999">
 
           <div class="term-box">
-            <p><strong>Termo de agendamento:</strong> ao confirmar, você reserva este horário em seu nome. Chegue com até 10 minutos de antecedência; atrasos superiores a 15 minutos podem causar perda da vaga. Cancelamentos devem ser avisados com pelo menos 4 horas de antecedência pela recepção do Grêmio.</p>
+            <p><strong>Termo de agendamento:</strong> Ao confirmar, você reserva este horário em seu nome. Chegue com até 10 minutos de antecedência; atrasos superiores a 10 minutos poderão ocasionar a perda da vaga. <strong>Cancelamentos deverão ser comunicados à equipe do Grêmio com, no mínimo, 4 horas de antecedência.</strong>
+Em caso de não comparecimento sem cancelamento prévio, será devida uma restituição simbólica no valor de <strong>R$ 25,00</strong> destinada a compensar a reserva do horário e a indisponibilidade da vaga para outros associados.</p>
           </div>
           <label class="checkbox-row" for="bookingTermo">
             <input type="checkbox" id="bookingTermo" name="termo" required>
-            <span>Li e aceito o termo de agendamento acima.</span>
+            <span>Declaro que aceito os termos apresentados, bem como a restituição descrita neste termo.</span>
           </label>
 
           <p class="form-error" id="bookingFormError"></p>
@@ -386,6 +401,19 @@
     }
 
     function render(){
+      const meuAgendamento = getMeuAgendamento();
+      if(meuAgendamento){
+        const dataFormatada = meuAgendamento.data.split('-').reverse().join('/');
+        container.innerHTML = `
+          <div class="already-booked-card">
+            <div class="already-booked-icon">✓</div>
+            <h4>Agendamento confirmado</h4>
+            <p>Você já garantiu sua vaga de <strong>${meuAgendamento.servico}</strong><br>em ${dataFormatada} às ${meuAgendamento.horario}.</p>
+            <span class="already-booked-note">Só é possível ter 1 agendamento ativo por vez</span>
+          </div>`;
+        return;
+      }
+
       const y = state.year, m = state.month;
       const total = daysInMonth(y,m);
       const startDow = firstWeekday(y,m);
@@ -494,7 +522,11 @@
                 await saveBooking(containerId, state.selected, horarioEscolhido, dados);
                 state.selectedTime = null;
                 showSuccessToast(`Agendamento concluído! Te esperamos em ${dataFormatada} às ${horarioEscolhido}.`);
-                // não precisa chamar render() aqui: o listener do Firestore atualiza sozinho quando o dado chegar
+                setMeuAgendamento({
+                  servico: config.serviceName || 'Serviço',
+                  data: state.selected,
+                  horario: horarioEscolhido
+                });
               }catch(err){
                 console.error('Erro ao salvar agendamento no Firestore:', err);
                 showSuccessToast('Ops! Não foi possível salvar seu agendamento. Tente novamente.');

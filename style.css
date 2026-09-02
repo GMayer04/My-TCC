@@ -698,3 +698,49 @@
   .socio-modal-btn:hover{
     opacity:0.9;
   }
+
+  /* ===== CARD "JÁ AGENDADO" (trava o calendário depois de 1 agendamento) ===== */
+  .already-booked-card{
+    text-align:center;
+    padding:36px 20px;
+    background:linear-gradient(160deg, var(--green-light) 0%, #fff 100%);
+    border:1px solid var(--green-light);
+    border-radius:var(--radius);
+  }
+  .already-booked-icon{
+    width:56px; height:56px;
+    margin:0 auto 16px;
+    border-radius:50%;
+    background:var(--green-deep);
+    color:#fff;
+    font-size:26px;
+    font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 20px rgba(11,107,79,0.25);
+  }
+  .already-booked-card h4{
+    font-family:'Anton', sans-serif;
+    font-weight:400;
+    text-transform:uppercase;
+    color:var(--green-deep);
+    font-size:18px;
+    margin-bottom:10px;
+  }
+  .already-booked-card p{
+    font-size:14px;
+    color:var(--grey-dark);
+    line-height:1.5;
+    margin-bottom:14px;
+  }
+  .already-booked-note{
+    display:inline-block;
+    font-size:11.5px;
+    font-weight:700;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    color:var(--green-deep);
+    background:#fff;
+    border:1px solid var(--green-light);
+    padding:6px 14px;
+    border-radius:999px;
+  }
