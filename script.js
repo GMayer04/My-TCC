@@ -207,7 +207,7 @@
     { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social", description: "Traga sua dupla e dispute o campeonato de dominó do grêmio. Inscrições limitadas, vagas por ordem de chegada.", link: "" },
     { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque", description: "Feijoada completa com direito a música ao vivo. Aberto a sócios e convidados.", link: "" },
     { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas", description: "Solte a voz na nossa noite de karaokê! Bar aberto e repertório variado.", link: "" },
-    { id: "sinuca-ago", img: "images/Sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos", description: "Torneio eliminatório de sinuca. Inscrições na recepção até o dia do evento.", link: "" },
+    { id: "sinuca-ago", img: "images/sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos", description: "Torneio eliminatório de sinuca. Inscrições na recepção até o dia do evento.", link: "" },
   ];
 
   function renderEventCards(){
