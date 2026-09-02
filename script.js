@@ -117,7 +117,7 @@
           </div>
           <label class="checkbox-row" for="bookingTermo">
             <input type="checkbox" id="bookingTermo" name="termo" required>
-            <span>Li e aceito o termo de agendamento acima, bem como os ressarcimentos nele descritos.</span>
+            <span>Li e aceito o termo de agendamento acima.</span>
           </label>
 
           <p class="form-error" id="bookingFormError"></p>
@@ -134,13 +134,13 @@
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
     });
     document.getElementById('bookingContato').addEventListener('input', (e) => {
-    let numeros = e.target.value.replace(/\D/g, '').slice(0, 11); // só dígitos, no máximo 11 (DDD + 9 dígitos)
-    let formatado = numeros;
-    if(numeros.length > 0) formatado = '(' + numeros.slice(0, 2);
-    if(numeros.length >= 3) formatado += ') ' + numeros.slice(2, 7);
-    if(numeros.length >= 8) formatado += '-' + numeros.slice(7, 11);
-    e.target.value = formatado;
-});
+      let numeros = e.target.value.replace(/\D/g, '').slice(0, 11); // só dígitos, no máximo 11 (DDD + 9 dígitos)
+      let formatado = numeros;
+      if(numeros.length > 0) formatado = '(' + numeros.slice(0, 2);
+      if(numeros.length >= 3) formatado += ') ' + numeros.slice(2, 7);
+      if(numeros.length >= 8) formatado += '-' + numeros.slice(7, 11);
+      e.target.value = formatado;
+    });
   }
 
   function openBookingModal(subtitle, onConfirm){
@@ -204,10 +204,10 @@
 
   // ---- Cards de eventos ----
   const eventCards = [
-    { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social", link: "" },
-    { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque", link: "" },
-    { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas", link: "" },
-    { id: "sinuca-ago", img: "images/Sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos", link: "" },
+    { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social", description: "Traga sua dupla e dispute o campeonato de dominó do grêmio. Inscrições limitadas, vagas por ordem de chegada.", link: "" },
+    { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque", description: "Feijoada completa com direito a música ao vivo. Aberto a sócios e convidados.", link: "" },
+    { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas", description: "Solte a voz na nossa noite de karaokê! Bar aberto e repertório variado.", link: "" },
+    { id: "sinuca-ago", img: "images/Sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos", description: "Torneio eliminatório de sinuca. Inscrições na recepção até o dia do evento.", link: "" },
   ];
 
   function renderEventCards(){
@@ -229,13 +229,60 @@
       btn.addEventListener('click', () => {
         const ev = eventCards.find(e => e.id === btn.dataset.eventId);
         if(!ev) return;
-        if(!ev.link){
-          console.warn(`Link do evento "${ev.title}" ainda não foi definido.`);
-          return;
-        }
-        window.open(ev.link, '_blank');
+        openEventLinkModal(ev);
       });
     });
+  }
+
+  // ---- Modal simples do evento (mesma estilização do modal de agendamento) ----
+  function ensureEventLinkModal(){
+    if(document.getElementById('eventLinkModalOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'eventLinkModalOverlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="eventLinkModalTitle">
+        <button type="button" class="modal-close" id="eventLinkModalClose" aria-label="Fechar">&times;</button>
+        <h3 id="eventLinkModalTitle"></h3>
+        <p class="modal-subtitle" id="eventLinkModalSubtitle"></p>
+        <p id="eventLinkModalDescription" style="font-size:14px; color:var(--grey-dark); line-height:1.5; margin-bottom:18px;"></p>
+        <a href="#" target="_blank" rel="noopener" class="book-btn" id="eventLinkModalBtn" style="display:block; text-align:center; text-decoration:none;">Acesse o link aqui</a>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if(e.target === overlay) closeEventLinkModal();
+    });
+    document.getElementById('eventLinkModalClose').addEventListener('click', closeEventLinkModal);
+  }
+
+  function openEventLinkModal(ev){
+    ensureEventLinkModal();
+    const overlay = document.getElementById('eventLinkModalOverlay');
+    document.getElementById('eventLinkModalTitle').textContent = ev.title;
+    document.getElementById('eventLinkModalSubtitle').textContent = ev.time;
+    document.getElementById('eventLinkModalDescription').textContent = ev.description || '';
+    const linkBtn = document.getElementById('eventLinkModalBtn');
+    if(ev.link){
+      linkBtn.href = ev.link;
+      linkBtn.style.opacity = '1';
+      linkBtn.style.pointerEvents = 'auto';
+    } else {
+      linkBtn.href = '#';
+      linkBtn.textContent = 'Link em breve';
+      linkBtn.style.opacity = '0.5';
+      linkBtn.style.pointerEvents = 'none';
+    }
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeEventLinkModal(){
+    const overlay = document.getElementById('eventLinkModalOverlay');
+    if(overlay){
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
   }
 
   renderEventCards();
@@ -422,18 +469,18 @@
     }, 60000);
   }
 
-  // Manicure: terça, quinta
+  // Manicure:  quarta e sexta
   buildCalendar('cal-manicure', {
     serviceName: 'Manicure',
-    openWeekdays: [2,4,], // terça, quinta
+    openWeekdays: [3,5], // quarta e sexta
     slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
     slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
   });
 
-  // Massagem: segunda, quarta
+  // Massagem: terça, quinta 
   buildCalendar('cal-massage', {
     serviceName: 'Massagem',
-    openWeekdays: [1,3,], // segunda, quarta
+    openWeekdays: [1,4], // terça, quinta
     slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
     slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
   });
