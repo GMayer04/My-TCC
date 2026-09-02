@@ -664,3 +664,37 @@
   .event-join-btn{
     background:var(--green-deep);
   }
+
+  /* ===== MODAL "SOBRE O GRÊMIO RECREATIVO" (verde, texto branco) ===== */
+  .socio-modal-box{
+    background:var(--green-deep);
+    max-width:520px;
+    max-height:85vh;
+  }
+  .socio-modal-box h3{
+    color:#fff;
+  }
+  .socio-modal-close{
+    color:#fff;
+  }
+  .socio-modal-text{
+    color:#fff;
+    font-size:14px;
+    line-height:1.6;
+    margin-bottom:14px;
+  }
+  .socio-modal-btn{
+    display:block;
+    text-align:center;
+    background:#fff;
+    color:var(--green-deep);
+    font-weight:700;
+    padding:13px 20px;
+    border-radius:12px;
+    text-decoration:none;
+    margin-top:8px;
+    transition:opacity .2s ease;
+  }
+  .socio-modal-btn:hover{
+    opacity:0.9;
+  }

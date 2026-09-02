@@ -6,6 +6,55 @@
     navToggle.setAttribute('aria-expanded', open);
   });
 
+  // ---- Modal "Sobre o Grêmio Recreativo" (botão "Quero ser sócio") ----
+  function ensureSocioModal(){
+    if(document.getElementById('socioModalOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'socioModalOverlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box socio-modal-box" role="dialog" aria-modal="true" aria-labelledby="socioModalTitle">
+        <button type="button" class="modal-close socio-modal-close" id="socioModalClose" aria-label="Fechar">&times;</button>
+        <h3 id="socioModalTitle">Sobre o Grêmio Recreativo</h3>
+        <p class="socio-modal-text">O Grêmio Recreativo é uma iniciativa voltada à promoção do bem-estar, da integração e da qualidade de vida dos colaboradores associados, proporcionando momentos de lazer, confraternização e experiências ao longo de todo o ano.</p>
+        <p class="socio-modal-text">Por meio da associação, os colaboradores têm acesso a uma programação diversificada de ações e benefícios, especialmente em datas comemorativas. Entre as iniciativas estão as tradicionais celebrações de Dia das Mães, Dia dos Pais e Natal, além da distribuição de ovos de Páscoa e outras ações especiais desenvolvidas para valorizar os associados e suas famílias.</p>
+        <p class="socio-modal-text">Além das atividades comemorativas, o Grêmio oferece serviços e ações voltados ao cuidado e ao bem-estar durante a rotina, como massagens e serviços de manicure, proporcionando momentos de relaxamento e cuidado pessoal aos colaboradores.</p>
+        <p class="socio-modal-text">A integração também é incentivada por meio de eventos esportivos, campeonatos internos e atividades de confraternização, criando oportunidades para que os associados compartilhem experiências, fortaleçam vínculos e promovam um ambiente cada vez mais colaborativo.</p>
+        <p class="socio-modal-text">Mais do que oferecer benefícios, o Grêmio Recreativo busca aproximar pessoas, incentivar a convivência e proporcionar momentos especiais, contribuindo para uma experiência mais positiva e integrada dentro e fora do ambiente de trabalho.</p>
+        <p class="socio-modal-text">Faça parte do Grêmio Recreativo e aproveite tudo o que preparamos para você.</p>
+        <a href="mailto:gremio@miracema-nuodex.com.br" class="socio-modal-btn">Faça parte aqui</a>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if(e.target === overlay) closeSocioModal();
+    });
+    document.getElementById('socioModalClose').addEventListener('click', closeSocioModal);
+  }
+
+  function openSocioModal(){
+    ensureSocioModal();
+    const overlay = document.getElementById('socioModalOverlay');
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSocioModal(){
+    const overlay = document.getElementById('socioModalOverlay');
+    if(overlay){
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  }
+
+  const queroSerSocioBtn = document.getElementById('quero-ser-socio-btn');
+  if(queroSerSocioBtn){
+    queroSerSocioBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openSocioModal();
+    });
+  }
+
   // ---- News ticker: próximos eventos do grêmio (gerado a partir dos cards de eventos) ----
   const track = document.getElementById('tickerTrack');
 
