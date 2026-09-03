@@ -6,6 +6,120 @@
     navToggle.setAttribute('aria-expanded', open);
   });
 
+  // ==================================================================
+  // ---- Login de sócios (crachá + PIN) via Firebase Auth ----
+  // ==================================================================
+  window.socioAtual = null; // { uid, cracha, nome } quando logado, null quando não
+
+  function montarEmailSintetico(cracha){
+    return `${cracha}@socios.gremio-miracema.local`;
+  }
+  function montarSenhaFirebase(pin){
+    // Firebase exige senha com pelo menos 6 caracteres; dobramos o PIN de 4 dígitos por baixo dos panos
+    return pin + pin;
+  }
+
+  async function tentarLoginOuCadastro(cracha, pin, nome){
+    const email = montarEmailSintetico(cracha);
+    const senha = montarSenhaFirebase(pin);
+    try{
+      await window.fbSignIn(window.auth, email, senha);
+      // login OK — o onAuthStateChanged cuida do resto
+    }catch(errLogin){
+      // pode ser primeiro acesso (conta não existe) OU PIN errado — tenta criar a conta pra descobrir qual é
+      try{
+        const cred = await window.fbCreateUser(window.auth, email, senha);
+        await window.fbSetDoc(window.fbDoc(window.db, 'socios', cred.user.uid), {
+          cracha,
+          nome: nome || '',
+          criadoEm: window.fbServerTimestamp()
+        });
+        // conta criada com sucesso = era primeiro acesso mesmo — o onAuthStateChanged cuida do resto
+      }catch(errCadastro){
+        if(errCadastro.code === 'auth/email-already-in-use'){
+          throw new Error('PIN incorreto. Confira os 4 dígitos ou fale com a recepção.');
+        }
+        console.error('Erro no login/cadastro de sócio:', errCadastro);
+        throw new Error('Não foi possível entrar. Confira o crachá e o PIN e tente de novo.');
+      }
+    }
+  }
+
+  function mostrarAreaLogada(nome){
+    document.getElementById('socioLoginGate').style.display = 'none';
+    document.getElementById('servicesGrid').style.display = '';
+    const info = document.getElementById('socioLoggedInfo');
+    info.style.display = '';
+    info.innerHTML = `Logado como <strong>${nome || 'sócio'}</strong> · <a href="#" id="socioLogoutLink">Sair</a>`;
+    document.getElementById('socioLogoutLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.fbSignOut(window.auth);
+    });
+  }
+
+  function mostrarAreaLogin(){
+    document.getElementById('socioLoginGate').style.display = '';
+    document.getElementById('servicesGrid').style.display = 'none';
+    document.getElementById('socioLoggedInfo').style.display = 'none';
+  }
+
+  function iniciarAuthListener(){
+    if(!window.auth){
+      setTimeout(iniciarAuthListener, 200); // Firebase ainda carregando
+      return;
+    }
+    window.fbOnAuthStateChanged(window.auth, async (user) => {
+      if(user){
+        let perfil = { cracha: '', nome: '' };
+        try{
+          const snap = await window.fbGetDoc(window.fbDoc(window.db, 'socios', user.uid));
+          if(snap.exists()) perfil = snap.data();
+        }catch(e){
+          console.error('Erro ao buscar perfil do sócio:', e);
+        }
+        window.socioAtual = { uid: user.uid, cracha: perfil.cracha, nome: perfil.nome };
+        mostrarAreaLogada(perfil.nome);
+        iniciarEscutaMeuAgendamento(user.uid);
+      } else {
+        window.socioAtual = null;
+        mostrarAreaLogin();
+        iniciarEscutaMeuAgendamento(null);
+      }
+    });
+  }
+  iniciarAuthListener();
+
+  // ---- Máscara e validação do formulário de login ----
+  document.getElementById('loginCracha').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+  });
+  document.getElementById('loginPin').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+  });
+  document.getElementById('socioLoginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cracha = document.getElementById('loginCracha').value.trim();
+    const pin = document.getElementById('loginPin').value.trim();
+    const nome = document.getElementById('loginNome').value.trim();
+    const errorEl = document.getElementById('loginFormError');
+    const btn = document.getElementById('loginSubmitBtn');
+    errorEl.textContent = '';
+
+    if(cracha.length !== 4 || pin.length !== 4){
+      errorEl.textContent = 'Preencha o crachá e o PIN com 4 dígitos.';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+    try{
+      await tentarLoginOuCadastro(cracha, pin, nome);
+    }catch(err){
+      errorEl.textContent = err.message || 'Não foi possível entrar.';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  });
+
   // ---- Modal "Sobre o Grêmio Recreativo" (botão "Quero ser sócio") ----
   function ensureSocioModal(){
     if(document.getElementById('socioModalOverlay')) return;
@@ -92,17 +206,45 @@
   const calendarRenderers = []; // cada calendário registra sua função de render aqui
 
   // ---- Controle de "já agendou": depois de 1 agendamento, trava os calendários pra essa pessoa ----
-  const MEU_AGENDAMENTO_KEY = 'miracema-meu-agendamento';
-  function getMeuAgendamento(){
-    try{
-      return JSON.parse(localStorage.getItem(MEU_AGENDAMENTO_KEY));
-    }catch(e){
-      return null;
-    }
+  // Agora vinculado à conta logada (Firestore), não mais ao navegador — e libera sozinho quando a semana vira
+  let meuAgendamentoCache = null;
+  let unsubscribeMeuAgendamento = null;
+
+  function computeWeekStartStr(dateStr){
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() - d.getDay()); // volta até domingo daquela semana
+    return formatDateStr(d);
   }
-  function setMeuAgendamento(info){
-    localStorage.setItem(MEU_AGENDAMENTO_KEY, JSON.stringify(info));
-    calendarRenderers.forEach(fn => fn()); // trava os dois calendários na hora, sem esperar o Firestore
+
+  function iniciarEscutaMeuAgendamento(uid){
+    if(unsubscribeMeuAgendamento){ unsubscribeMeuAgendamento(); unsubscribeMeuAgendamento = null; }
+    if(!uid){
+      meuAgendamentoCache = null;
+      calendarRenderers.forEach(fn => fn());
+      return;
+    }
+    const ref = window.fbDoc(window.db, 'meus-agendamentos', uid);
+    unsubscribeMeuAgendamento = window.fbOnSnapshot(ref, (snap) => {
+      if(snap.exists()){
+        const info = snap.data();
+        const semanaAtual = computeWeekStartStr(formatDateStr(todayDateOnly()));
+        meuAgendamentoCache = (info.semanaKey === semanaAtual) ? info : null; // expira sozinho na virada da semana
+      } else {
+        meuAgendamentoCache = null;
+      }
+      calendarRenderers.forEach(fn => fn());
+    });
+  }
+
+  function getMeuAgendamento(){
+    return meuAgendamentoCache;
+  }
+
+  async function setMeuAgendamento(info){
+    if(!window.socioAtual) return;
+    const completo = Object.assign({}, info, { semanaKey: computeWeekStartStr(info.data) });
+    await window.fbSetDoc(window.fbDoc(window.db, 'meus-agendamentos', window.socioAtual.uid), completo);
+    // o onSnapshot acima já detecta e atualiza sozinho, sem precisar chamar render() aqui
   }
 
   function loadBookings(){
@@ -215,6 +357,10 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     document.getElementById('bookingModalSubtitle').textContent = subtitle;
     form.reset();
     errorEl.textContent = '';
+    if(window.socioAtual){
+      document.getElementById('bookingNome').value = window.socioAtual.nome || '';
+      document.getElementById('bookingCracha').value = window.socioAtual.cracha || '';
+    }
     overlay.classList.add('open');
     document.body.style.overflow = 'hidden';
 
@@ -522,7 +668,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
                 await saveBooking(containerId, state.selected, horarioEscolhido, dados);
                 state.selectedTime = null;
                 showSuccessToast(`Agendamento concluído! Te esperamos em ${dataFormatada} às ${horarioEscolhido}.`);
-                setMeuAgendamento({
+                await setMeuAgendamento({
                   servico: config.serviceName || 'Serviço',
                   data: state.selected,
                   horario: horarioEscolhido

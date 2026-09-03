@@ -79,9 +79,29 @@
       <p class="eyebrow">Agenda de serviços</p>
       <h2>Escolha o dia e o horário</h2>
       <p>Os calendários abaixo mostram os dias com vagas abertas. Toque em uma data disponível para ver os horários livres.</p>
+      <p class="socio-logged-info" id="socioLoggedInfo" style="display:none;"></p>
     </div>
 
-    <div class="services-grid">
+    <div class="socio-login-gate" id="socioLoginGate">
+      <div class="socio-login-icon">🔑</div>
+      <h3>Área de sócios</h3>
+      <p>Entre com seu crachá para ver os horários e agendar.</p>
+      <form id="socioLoginForm" novalidate>
+        <label class="field-label" for="loginCracha">Número do crachá</label>
+        <input type="text" id="loginCracha" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ex: 0123" required>
+
+        <label class="field-label" for="loginPin">PIN (4 dígitos)</label>
+        <input type="password" id="loginPin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" required>
+
+        <label class="field-label" for="loginNome">Seu nome (só é usado no primeiro acesso)</label>
+        <input type="text" id="loginNome" placeholder="Nome completo">
+
+        <p class="form-error" id="loginFormError"></p>
+        <button type="submit" class="book-btn" id="loginSubmitBtn">Entrar</button>
+      </form>
+    </div>
+
+    <div class="services-grid" id="servicesGrid" style="display:none;">
 
       <!-- MANICURE CARD -->
       <article class="service-card">
@@ -155,8 +175,12 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, onSnapshot, serverTimestamp
+    getFirestore, collection, addDoc, setDoc, getDoc, doc, onSnapshot, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCZF9cFpevic1dQPXaPsrTNDuZKcqQOf8o",
@@ -171,8 +195,17 @@
   window.db = getFirestore(app);
   window.fbCollection = collection;
   window.fbAddDoc = addDoc;
+  window.fbSetDoc = setDoc;
+  window.fbGetDoc = getDoc;
+  window.fbDoc = doc;
   window.fbOnSnapshot = onSnapshot;
   window.fbServerTimestamp = serverTimestamp;
+
+  window.auth = getAuth(app);
+  window.fbCreateUser = createUserWithEmailAndPassword;
+  window.fbSignIn = signInWithEmailAndPassword;
+  window.fbOnAuthStateChanged = onAuthStateChanged;
+  window.fbSignOut = signOut;
 </script>
 <script src="script.js" defer></script>
 

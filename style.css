@@ -744,3 +744,66 @@
     padding:6px 14px;
     border-radius:999px;
   }
+  /* ===== LOGIN DE SÓCIOS (crachá + PIN) ===== */
+  .socio-login-gate{
+    max-width:420px;
+    margin:0 auto;
+    text-align:center;
+    background:#fff;
+    border:1px solid var(--grey-light);
+    border-radius:var(--radius);
+    padding:32px 28px;
+    box-shadow:var(--shadow);
+  }
+  .socio-login-icon{
+    width:56px; height:56px;
+    margin:0 auto 14px;
+    border-radius:50%;
+    background:var(--green-light);
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px;
+  }
+  .socio-login-gate h3{
+    font-family:'Anton', sans-serif;
+    font-weight:400;
+    text-transform:uppercase;
+    color:var(--green-deep);
+    font-size:19px;
+    margin-bottom:6px;
+  }
+  .socio-login-gate > p{
+    font-size:13.5px;
+    color:var(--grey);
+    margin-bottom:18px;
+  }
+  .socio-login-gate form{
+    text-align:left;
+  }
+  .socio-login-gate input[type="text"],
+  .socio-login-gate input[type="password"]{
+    width:100%;
+    padding:11px 13px;
+    border-radius:10px;
+    border:1px solid var(--grey-light);
+    font-size:14px;
+    font-family:inherit;
+    color:var(--ink);
+  }
+  .socio-login-gate input:focus{
+    outline:none;
+    border-color:var(--green-bright);
+  }
+  .socio-login-gate .book-btn{
+    margin-top:16px;
+  }
+  .socio-logged-info{
+    font-size:13px;
+    color:var(--grey-dark);
+    margin-top:6px;
+  }
+  .socio-logged-info a{
+    color:var(--green-deep);
+    font-weight:700;
+    text-decoration:underline;
+    cursor:pointer;
+  }
