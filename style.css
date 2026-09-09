@@ -780,7 +780,8 @@
     text-align:left;
   }
   .socio-login-gate input[type="text"],
-  .socio-login-gate input[type="password"]{
+  .socio-login-gate input[type="password"],
+  .socio-login-gate input[type="email"]{
     width:100%;
     padding:11px 13px;
     border-radius:10px;

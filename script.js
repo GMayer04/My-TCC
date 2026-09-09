@@ -187,16 +187,21 @@
   }
 
   function renderTicker(){
-    const html = eventCards.map(ev => {
+    if(!eventCards.length){
+      track.innerHTML = '';
+      return;
+    }
+    const itemHtml = eventCards.map(ev => {
       const { date, detail } = parseEventDateAndDetail(ev.time);
       return `
         <div class="ticker-item">
           <span class="date-chip">${date}</span>
-          <span>${ev.title}${detail ? ' — ' + detail : ''}</span>
+          <span><strong>${ev.title}</strong>${detail ? ' — ' + detail : ''}</span>
         </div>`;
     }).join('');
-    // duplicate for seamless loop
-    track.innerHTML = html + html;
+    // repete o suficiente pra sempre ter ~6 itens rolando, senão com pouco evento a repetição fica óbvia
+    const vezes = Math.max(2, Math.ceil(6 / eventCards.length));
+    track.innerHTML = itemHtml.repeat(vezes);
   }
 
   // ---- Persistência dos agendamentos (Firestore, em tempo real) ----
@@ -205,9 +210,9 @@
   let bookingsCache = {}; // cópia local da coleção "vagas", mantida em sincronia com o Firestore
   const calendarRenderers = []; // cada calendário registra sua função de render aqui
 
-  // ---- Controle de "já agendou": depois de 1 agendamento, trava os calendários pra essa pessoa ----
-  // Agora vinculado à conta logada (Firestore), não mais ao navegador — e libera sozinho quando a semana vira
-  let meuAgendamentoCache = null;
+  // ---- Controle de "já agendou": trava só o serviço que a pessoa agendou, não os outros ----
+  // Um documento por sócio, com uma chave por serviço: { manicure: {...} | ausente, massagem: {...} | ausente }
+  let meuAgendamentoCache = {};
   let unsubscribeMeuAgendamento = null;
 
   function computeWeekStartStr(dateStr){
@@ -219,31 +224,28 @@
   function iniciarEscutaMeuAgendamento(uid){
     if(unsubscribeMeuAgendamento){ unsubscribeMeuAgendamento(); unsubscribeMeuAgendamento = null; }
     if(!uid){
-      meuAgendamentoCache = null;
+      meuAgendamentoCache = {};
       calendarRenderers.forEach(fn => fn());
       return;
     }
     const ref = window.fbDoc(window.db, 'meus-agendamentos', uid);
     unsubscribeMeuAgendamento = window.fbOnSnapshot(ref, (snap) => {
-      if(snap.exists()){
-        const info = snap.data();
-        const semanaAtual = computeWeekStartStr(formatDateStr(todayDateOnly()));
-        meuAgendamentoCache = (info.semanaKey === semanaAtual) ? info : null; // expira sozinho na virada da semana
-      } else {
-        meuAgendamentoCache = null;
-      }
+      meuAgendamentoCache = snap.exists() ? snap.data() : {};
       calendarRenderers.forEach(fn => fn());
     });
   }
 
-  function getMeuAgendamento(){
-    return meuAgendamentoCache;
+  function getMeuAgendamento(configKey){
+    const info = meuAgendamentoCache ? meuAgendamentoCache[configKey] : null;
+    if(!info) return null;
+    const semanaAtual = computeWeekStartStr(formatDateStr(todayDateOnly()));
+    return (info.semanaKey === semanaAtual) ? info : null; // expira sozinho na virada da semana
   }
 
-  async function setMeuAgendamento(info){
+  async function setMeuAgendamento(configKey, info){
     if(!window.socioAtual) return;
     const completo = Object.assign({}, info, { semanaKey: computeWeekStartStr(info.data) });
-    await window.fbSetDoc(window.fbDoc(window.db, 'meus-agendamentos', window.socioAtual.uid), completo);
+    await window.fbSetDoc(window.fbDoc(window.db, 'meus-agendamentos', window.socioAtual.uid), { [configKey]: completo }, { merge: true });
     // o onSnapshot acima já detecta e atualiza sozinho, sem precisar chamar render() aqui
   }
 
@@ -253,12 +255,14 @@
 
   async function saveBooking(containerId, dateStr, time, dados){
     const criadoEm = window.fbServerTimestamp();
+    const uid = window.socioAtual ? window.socioAtual.uid : null;
     await Promise.all([
       // registro público: só o essencial pra travar o horário no calendário
       window.fbAddDoc(window.fbCollection(window.db, 'vagas'), {
         servico: containerId,
         data: dateStr,
         horario: time,
+        uid,
         criadoEm
       }),
       // registro privado: dados completos, só o admin consegue ler depois
@@ -270,6 +274,7 @@
         contato: dados.contato,
         cracha: dados.cracha,
         aceitouTermo: true,
+        uid,
         criadoEm
       })
     ]);
@@ -412,13 +417,24 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }, 3200);
   }
 
-  // ---- Cards de eventos ----
-  const eventCards = [
-    { id: "domino-ago", img: "images/domino.png", title: "Torneio de dominó", time: "02 AGO · 19h — Salão Social", description: "Traga sua dupla e dispute o campeonato de dominó do grêmio. Inscrições limitadas, vagas por ordem de chegada.", link: "" },
-    { id: "feijoada-ago", img: "images/feijoada.png", title: "Feijoada dos sócios", time: "08 AGO · 12h — Quiosque", description: "Feijoada completa com direito a música ao vivo. Aberto a sócios e convidados.", link: "" },
-    { id: "karaoke-ago", img: "images/karaoke.png", title: "Noite do karaokê", time: "15 AGO · 20h — Salão de Festas", description: "Solte a voz na nossa noite de karaokê! Bar aberto e repertório variado.", link: "" },
-    { id: "sinuca-ago", img: "images/sinuca.png", title: "Campeonato de sinuca", time: "22 AGO — Sala de Jogos", description: "Torneio eliminatório de sinuca. Inscrições na recepção até o dia do evento.", link: "" },
-  ];
+  // ---- Cards de eventos (vêm do Firestore, editáveis pelo painel admin) ----
+  let eventCards = [];
+
+  function iniciarEscutaEventos(){
+    if(!window.db){
+      setTimeout(iniciarEscutaEventos, 200);
+      return;
+    }
+    window.fbOnSnapshot(window.fbCollection(window.db, 'eventos'), (snapshot) => {
+      eventCards = [];
+      snapshot.forEach(doc => {
+        eventCards.push(Object.assign({ id: doc.id }, doc.data()));
+      });
+      renderEventCards();
+      renderTicker();
+    });
+  }
+  iniciarEscutaEventos();
 
   function renderEventCards(){
     const grid = document.getElementById('eventCardsGrid');
@@ -426,9 +442,9 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     grid.innerHTML = eventCards.map(ev => {
       return `
         <article class="event-card">
-          <img src="${ev.img}" alt="${ev.title}" loading="lazy">
+          <img src="${ev.imgData || ev.img || ''}" alt="${ev.title}" loading="lazy">
           <div class="event-card-body">
-            <h3 class="event-card-title">${ev.title}</h3>
+            <h3 class="event-card-title"><strong>${ev.title}</strong></h3>
             <p class="event-card-time">${ev.time}</p>
             <button type="button" class="book-btn event-join-btn" data-event-id="${ev.id}">Participar</button>
           </div>
@@ -495,8 +511,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }
   }
 
-  renderEventCards();
-  renderTicker();
+
 
   // ---- Calendars ----
   const DOW = ["D","S","T","Q","Q","S","S"];
@@ -530,6 +545,9 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
       return getSlotsFromTemplate(config.slotsTemplate, dateStr);
     }
     function getNoiteSlotsForDate(dateStr){
+      if(config.diaNoite === undefined || config.diaNoite === null) return []; // sem dia de noite configurado
+      const weekday = new Date(dateStr + 'T00:00:00').getDay();
+      if(weekday !== config.diaNoite) return []; // só mostra noite no dia escolhido pelo admin
       return getSlotsFromTemplate(config.slotsNoite, dateStr);
     }
 
@@ -547,7 +565,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }
 
     function render(){
-      const meuAgendamento = getMeuAgendamento();
+      const meuAgendamento = getMeuAgendamento(config.configKey);
       if(meuAgendamento){
         const dataFormatada = meuAgendamento.data.split('-').reverse().join('/');
         container.innerHTML = `
@@ -668,7 +686,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
                 await saveBooking(containerId, state.selected, horarioEscolhido, dados);
                 state.selectedTime = null;
                 showSuccessToast(`Agendamento concluído! Te esperamos em ${dataFormatada} às ${horarioEscolhido}.`);
-                await setMeuAgendamento({
+                await setMeuAgendamento(config.configKey, {
                   servico: config.serviceName || 'Serviço',
                   data: state.selected,
                   horario: horarioEscolhido
@@ -686,6 +704,20 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     render();
     calendarRenderers.push(render); // permite que o listener do Firestore atualize esse calendário
 
+    // ---- Dias de atendimento (e dia de horário noturno, quando aplicável) vêm do Firestore ----
+    if(config.configKey){
+      (function escutarConfigServico(){
+        if(!window.db){ setTimeout(escutarConfigServico, 200); return; }
+        window.fbOnSnapshot(window.fbDoc(window.db, 'config', config.configKey), (snap) => {
+          if(!snap.exists()) return;
+          const dados = snap.data();
+          if(Array.isArray(dados.openWeekdays)) config.openWeekdays = dados.openWeekdays;
+          if('diaNoite' in dados) config.diaNoite = dados.diaNoite; // null = sem horário de noite
+          render();
+        });
+      })();
+    }
+
     // ---- Atualização automática: se a aba ficar aberta e o dia virar (meia-noite), recalcula sozinho ----
     setInterval(() => {
       const currentToday = formatDateStr(todayDateOnly());
@@ -696,18 +728,19 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }, 60000);
   }
 
-  // Manicure:  quarta e sexta
+  // Manicure: quarta e sexta (valor padrão até o painel admin definir outro) — sem horário de noite
   buildCalendar('cal-manicure', {
     serviceName: 'Manicure',
-    openWeekdays: [3,5], // quarta e sexta
-    slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
-    slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
+    configKey: 'manicure',
+    openWeekdays: [3,5],
+    slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"]
   });
 
-  // Massagem: terça, quinta 
+  // Massagem: terça e quinta (valor padrão até o painel admin definir outro); horário de noite só no dia escolhido no admin
   buildCalendar('cal-massage', {
     serviceName: 'Massagem',
-    openWeekdays: [1,4], // terça, quinta
+    configKey: 'massagem',
+    openWeekdays: [1,4],
     slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
     slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
   });

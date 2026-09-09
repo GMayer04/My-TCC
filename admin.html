@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Admin — Grêmio Social Recreativo Miracema</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="admin.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body class="admin-body">
+
+<!-- TELA DE LOGIN DO ADMIN -->
+<div class="admin-login-screen" id="adminLoginGate">
+  <div class="socio-login-gate admin-login-box">
+    <img src="images/GRMN.png" alt="Logo do Grêmio Social Recreativo Miracema" class="admin-login-logo">
+    <h3>Painel Admin</h3>
+    <p>Entre com seu e-mail e senha de administrador.</p>
+    <form id="adminLoginForm" novalidate>
+      <label class="field-label" for="adminEmail">E-mail</label>
+      <input type="email" id="adminEmail" autocomplete="username" required placeholder="recepcao@gremio-miracema.com.br">
+
+      <label class="field-label" for="adminSenha">Senha</label>
+      <input type="password" id="adminSenha" autocomplete="current-password" required placeholder="••••••••">
+
+      <p class="form-error" id="adminLoginError"></p>
+      <button type="submit" class="book-btn" id="adminLoginBtn">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- PAINEL (só aparece depois do login confirmado como admin) -->
+<div id="adminPanel" class="admin-shell" style="display:none;">
+
+  <aside class="admin-sidebar">
+    <div class="admin-brand">
+      <img src="images/GRMN.png" alt="" class="admin-brand-logo">
+      <div>
+        <strong>Grêmio Miracema</strong>
+        <span>Painel Admin</span>
+      </div>
+    </div>
+    <nav class="admin-nav">
+      <button type="button" class="admin-tab active" data-tab="eventos">
+        <span class="admin-nav-icon">🎉</span> Eventos
+      </button>
+      <button type="button" class="admin-tab" data-tab="agendamentos">
+        <span class="admin-nav-icon">📋</span> Agendamentos
+      </button>
+      <button type="button" class="admin-tab" data-tab="socios">
+        <span class="admin-nav-icon">👤</span> Sócios cadastrados
+      </button>
+      <button type="button" class="admin-tab" data-tab="config">
+        <span class="admin-nav-icon">📅</span> Dias de atendimento
+      </button>
+    </nav>
+    <div class="admin-sidebar-footer" id="adminHeaderInfo"></div>
+  </aside>
+
+  <main class="admin-content">
+
+    <!-- ABA EVENTOS -->
+    <section class="admin-tab-panel" id="tab-eventos">
+      <div class="admin-section-head">
+        <div>
+          <h2>Cards de eventos</h2>
+          <p class="admin-muted">Crie, edite ou remova os eventos exibidos no site.</p>
+        </div>
+        <button type="button" class="book-btn" id="btnNovoEvento">+ Novo evento</button>
+      </div>
+      <div id="eventosAdminList" class="admin-events-list"></div>
+    </section>
+
+    <!-- ABA AGENDAMENTOS -->
+    <section class="admin-tab-panel" id="tab-agendamentos" style="display:none;">
+      <div class="admin-section-head">
+        <div>
+          <h2>Agendamentos da semana atual</h2>
+          <p class="admin-muted">Veja, edite ou cancele os agendamentos da semana.</p>
+        </div>
+        <div class="admin-section-head-actions">
+          <button type="button" class="book-btn" id="btnCarregarAgendamentos">Carregar</button>
+          <button type="button" class="admin-btn-secundario" id="btnBaixarPdf" style="display:none;">Baixar PDF</button>
+        </div>
+      </div>
+      <p id="agendamentosVazio" class="admin-muted admin-empty-state">Clique em "Carregar" para ver os agendamentos da semana.</p>
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="agendamentosTable" style="display:none;">
+          <thead>
+            <tr>
+              <th>Serviço</th><th>Data</th><th>Horário</th><th>Nome</th><th>Contato</th><th>Crachá</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="agendamentosTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ABA SÓCIOS CADASTRADOS -->
+    <section class="admin-tab-panel" id="tab-socios" style="display:none;">
+      <div class="admin-section-head">
+        <div>
+          <h2>Sócios cadastrados</h2>
+          <p class="admin-muted">Crachás e nomes com login já criado no site. Excluir aqui remove só o perfil (nome/crachá) — para excluir o usuário por completo (a conta de login), peça apoio do TI.</p>
+        </div>
+        <button type="button" class="book-btn" id="btnCarregarSocios">Carregar</button>
+      </div>
+      <p id="sociosVazio" class="admin-muted admin-empty-state">Clique em "Carregar" para ver os sócios cadastrados.</p>
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="sociosTable" style="display:none;">
+          <thead>
+            <tr>
+              <th>Crachá</th><th>Nome</th><th>E-mail de login (Auth)</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="sociosTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ABA CONFIG DE DIAS -->
+    <section class="admin-tab-panel" id="tab-config" style="display:none;">
+      <div class="admin-section-head">
+        <div>
+          <h2>Dias de atendimento por serviço</h2>
+          <p class="admin-muted">Marque os dias da semana em que cada serviço aceita agendamento.</p>
+        </div>
+      </div>
+      <div class="admin-config-grid" id="configDiasGrid"></div>
+      <button type="button" class="book-btn" id="btnSalvarConfig" style="margin-top:18px;">Salvar dias de atendimento</button>
+      <p class="form-error" id="configSaveMsg"></p>
+    </section>
+
+  </main>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, setDoc, getDoc, doc, deleteDoc, updateDoc,
+    onSnapshot, query, where, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCZF9cFpevic1dQPXaPsrTNDuZKcqQOf8o",
+    authDomain: "gremio-miracema.firebaseapp.com",
+    projectId: "gremio-miracema",
+    storageBucket: "gremio-miracema.firebasestorage.app",
+    messagingSenderId: "1053861449624",
+    appId: "1:1053861449624:web:bceee59cecdfeefaf1a5ed"
+  };
+
+  // Nome diferente do app padrão: isola a sessão de login do admin da sessão de login
+  // dos sócios (index.html), que também roda na mesma origem/navegador.
+  const app = initializeApp(firebaseConfig, "admin-app");
+  window.db = getFirestore(app);
+  window.fbCollection = collection;
+  window.fbAddDoc = addDoc;
+  window.fbSetDoc = setDoc;
+  window.fbGetDoc = getDoc;
+  window.fbDoc = doc;
+  window.fbDeleteDoc = deleteDoc;
+  window.fbUpdateDoc = updateDoc;
+  window.fbOnSnapshot = onSnapshot;
+  window.fbQuery = query;
+  window.fbWhere = where;
+  window.fbGetDocs = getDocs;
+  window.fbServerTimestamp = serverTimestamp;
+
+  window.auth = getAuth(app);
+  window.fbSignIn = signInWithEmailAndPassword;
+  window.fbOnAuthStateChanged = onAuthStateChanged;
+  window.fbSignOut = signOut;
+</script>
+<script src="admin.js" defer></script>
+
+</body>
+</html>
