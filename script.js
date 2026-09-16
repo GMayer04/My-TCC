@@ -1,3 +1,14 @@
+// ---- Proteção contra XSS: texto vindo de sócios (nome) ou do admin (eventos) sempre passa por aqui
+// antes de virar HTML, senão dá pra injetar código malicioso via um nome de cadastro ou evento.
+function escapeHtml(valor){
+  const div = document.createElement('div');
+  div.textContent = valor === undefined || valor === null ? '' : String(valor);
+  return div.innerHTML;
+}
+function escapeAttr(valor){
+  return escapeHtml(valor).replace(/"/g, '&quot;');
+}
+
 // ---- Mobile nav toggle ----
   const navToggle = document.getElementById('navToggle');
   const mainNav = document.getElementById('mainNav');
@@ -50,7 +61,7 @@
     document.getElementById('servicesGrid').style.display = '';
     const info = document.getElementById('socioLoggedInfo');
     info.style.display = '';
-    info.innerHTML = `Logado como <strong>${nome || 'sócio'}</strong> · <a href="#" id="socioLogoutLink">Sair</a>`;
+    info.innerHTML = `Logado como <strong>${escapeHtml(nome || 'sócio')}</strong> · <a href="#" id="socioLogoutLink">Sair</a>`;
     document.getElementById('socioLogoutLink').addEventListener('click', (e) => {
       e.preventDefault();
       window.fbSignOut(window.auth);
@@ -195,8 +206,8 @@
       const { date, detail } = parseEventDateAndDetail(ev.time);
       return `
         <div class="ticker-item">
-          <span class="date-chip">${date}</span>
-          <span><strong>${ev.title}</strong>${detail ? ' — ' + detail : ''}</span>
+          <span class="date-chip">${escapeHtml(date)}</span>
+          <span><strong>${escapeHtml(ev.title)}</strong>${detail ? ' — ' + escapeHtml(detail) : ''}</span>
         </div>`;
     }).join('');
     // repete o suficiente pra sempre ter ~6 itens rolando, senão com pouco evento a repetição fica óbvia
@@ -221,6 +232,12 @@
     return formatDateStr(d);
   }
 
+  // ---- Quantas semanas a trava dura pra cada serviço. Manicure: a semana agendada + a seguinte (2).
+  // Os outros serviços (ex: massagem) seguem o padrão de 1 semana só. ----
+  function getDuracaoBloqueioSemanas(configKey){
+    return configKey === 'manicure' ? 2 : 1;
+  }
+
   function iniciarEscutaMeuAgendamento(uid){
     if(unsubscribeMeuAgendamento){ unsubscribeMeuAgendamento(); unsubscribeMeuAgendamento = null; }
     if(!uid){
@@ -239,12 +256,19 @@
     const info = meuAgendamentoCache ? meuAgendamentoCache[configKey] : null;
     if(!info) return null;
     const semanaAtual = computeWeekStartStr(formatDateStr(todayDateOnly()));
-    return (info.semanaKey === semanaAtual) ? info : null; // expira sozinho na virada da semana
+    // "liberaEm" é a semana em que a trava deixa de valer; dados antigos sem esse campo usam semanaKey (1 semana só)
+    const limite = info.liberaEm || info.semanaKey;
+    return (semanaAtual < limite) ? info : null; // expira sozinho quando a semana de liberação chega
   }
 
   async function setMeuAgendamento(configKey, info){
     if(!window.socioAtual) return;
-    const completo = Object.assign({}, info, { semanaKey: computeWeekStartStr(info.data) });
+    const semanaKey = computeWeekStartStr(info.data);
+    const duracaoSemanas = getDuracaoBloqueioSemanas(configKey);
+    const liberaEmDate = new Date(semanaKey + 'T00:00:00');
+    liberaEmDate.setDate(liberaEmDate.getDate() + 7 * duracaoSemanas);
+    const liberaEm = formatDateStr(liberaEmDate);
+    const completo = Object.assign({}, info, { semanaKey, liberaEm });
     await window.fbSetDoc(window.fbDoc(window.db, 'meus-agendamentos', window.socioAtual.uid), { [configKey]: completo }, { merge: true });
     // o onSnapshot acima já detecta e atualiza sozinho, sem precisar chamar render() aqui
   }
@@ -256,17 +280,25 @@
   async function saveBooking(containerId, dateStr, time, dados){
     const criadoEm = window.fbServerTimestamp();
     const uid = window.socioAtual ? window.socioAtual.uid : null;
-    await Promise.all([
-      // registro público: só o essencial pra travar o horário no calendário
-      window.fbAddDoc(window.fbCollection(window.db, 'vagas'), {
+    // ID determinístico: duas pessoas tentando o mesmo horário caem no MESMO documento,
+    // então a transação abaixo consegue detectar o conflito de verdade (não só no cache local)
+    const vagaId = `${containerId}__${dateStr}__${time.replace(':', '')}`;
+    const vagaRef = window.fbDoc(window.db, 'vagas', vagaId);
+    const agendamentoRef = window.fbDoc(window.fbCollection(window.db, 'agendamentos')); // gera um ID novo, ainda não grava
+
+    await window.fbRunTransaction(window.db, async (transaction) => {
+      const vagaSnap = await transaction.get(vagaRef);
+      if(vagaSnap.exists()){
+        throw new Error('Esse horário acabou de ser reservado por outra pessoa. Escolha outro, por favor.');
+      }
+      transaction.set(vagaRef, {
         servico: containerId,
         data: dateStr,
         horario: time,
         uid,
         criadoEm
-      }),
-      // registro privado: dados completos, só o admin consegue ler depois
-      window.fbAddDoc(window.fbCollection(window.db, 'agendamentos'), {
+      });
+      transaction.set(agendamentoRef, {
         servico: containerId,
         data: dateStr,
         horario: time,
@@ -276,8 +308,8 @@
         aceitouTermo: true,
         uid,
         criadoEm
-      })
-    ]);
+      });
+    });
     // não precisa atualizar bookingsCache na mão: o onSnapshot abaixo detecta e já atualiza sozinho
   }
 
@@ -398,15 +430,16 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
   }
 
   // ---- Popup verde de confirmação ----
-  function showSuccessToast(mensagem){
+  function showSuccessToast(mensagem, tipo){
     let toast = document.getElementById('successToast');
     if(!toast){
       toast = document.createElement('div');
       toast.id = 'successToast';
-      toast.className = 'success-toast';
       document.body.appendChild(toast);
     }
-    toast.innerHTML = `<span class="success-toast-icon">✓</span><span>${mensagem}</span>`;
+    const isErro = tipo === 'erro';
+    toast.className = isErro ? 'success-toast success-toast-erro' : 'success-toast';
+    toast.innerHTML = `<span class="success-toast-icon">${isErro ? '!' : '✓'}</span><span>${escapeHtml(mensagem)}</span>`;
     toast.classList.remove('show');
     // força reflow para reiniciar a animação se já estava visível
     void toast.offsetWidth;
@@ -442,11 +475,11 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     grid.innerHTML = eventCards.map(ev => {
       return `
         <article class="event-card">
-          <img src="${ev.imgData || ev.img || ''}" alt="${ev.title}" loading="lazy">
+          <img src="${escapeAttr(ev.imgData || ev.img || '')}" alt="${escapeAttr(ev.title)}" loading="lazy">
           <div class="event-card-body">
-            <h3 class="event-card-title"><strong>${ev.title}</strong></h3>
-            <p class="event-card-time">${ev.time}</p>
-            <button type="button" class="book-btn event-join-btn" data-event-id="${ev.id}">Participar</button>
+            <h3 class="event-card-title"><strong>${escapeHtml(ev.title)}</strong></h3>
+            <p class="event-card-time">${escapeHtml(ev.time)}</p>
+            <button type="button" class="book-btn event-join-btn" data-event-id="${escapeAttr(ev.id)}">Participar</button>
           </div>
         </article>`;
     }).join('');
@@ -554,6 +587,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     function dayStatus(date, dateStr){
       const today = todayDateOnly();
       if(date < today) return "past"; // dias anteriores a hoje: sempre indisponíveis
+      if(config.bloqueadoAte && dateStr <= config.bloqueadoAte) return "closed"; // bloqueio temporário definido pelo admin
       const endOfWeek = new Date(today);
       endOfWeek.setDate(today.getDate() + (6 - today.getDay())); // sábado da semana vigente
       if(date > endOfWeek) return "closed"; // além da semana atual: travado
@@ -693,7 +727,10 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
                 });
               }catch(err){
                 console.error('Erro ao salvar agendamento no Firestore:', err);
-                showSuccessToast('Ops! Não foi possível salvar seu agendamento. Tente novamente.');
+                const mensagemConflito = (err && err.message && err.message.includes('reservado por outra pessoa'))
+                  ? err.message
+                  : 'Ops! Não foi possível salvar seu agendamento. Tente novamente.';
+                showSuccessToast(mensagemConflito, 'erro');
               }
             }
           );
@@ -713,6 +750,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
           const dados = snap.data();
           if(Array.isArray(dados.openWeekdays)) config.openWeekdays = dados.openWeekdays;
           if('diaNoite' in dados) config.diaNoite = dados.diaNoite; // null = sem horário de noite
+          if('bloqueadoAte' in dados) config.bloqueadoAte = dados.bloqueadoAte; // null = sem bloqueio temporário
           render();
         });
       })();
@@ -733,7 +771,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     serviceName: 'Manicure',
     configKey: 'manicure',
     openWeekdays: [3,5],
-    slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"]
+    slotsTemplate: ["11:00","11:30","12:00","12:30","13:00","13:30"]
   });
 
   // Massagem: terça e quinta (valor padrão até o painel admin definir outro); horário de noite só no dia escolhido no admin

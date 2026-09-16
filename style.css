@@ -255,15 +255,6 @@
     display:flex; align-items:center; justify-content:center;
     flex-shrink:0;
   }
-  .service-price{
-    font-family:'Anton',sans-serif; font-size:22px;
-    text-align:right;
-  }
-  .service-price span{
-    display:block; font-family:'Work Sans',sans-serif; font-size:10.5px;
-    font-weight:600; letter-spacing:0.08em; opacity:0.8; text-transform:uppercase;
-  }
-
   .calendar{
     padding:22px 24px 26px;
   }
@@ -615,6 +606,10 @@
   .success-toast.show{
     opacity:1;
     transform:translateX(-50%) translateY(0);
+  }
+  .success-toast-erro{
+    background:rgba(192,57,43,0.92);
+    box-shadow:0 12px 30px rgba(120,30,20,0.35);
   }
   .success-toast-icon{
     background:rgba(255,255,255,0.25);

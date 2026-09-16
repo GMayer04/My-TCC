@@ -4,6 +4,19 @@
 
 const DIAS_SEMANA = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
 
+// ---- Proteção contra XSS: qualquer texto vindo de sócios (nome, contato, crachá, etc)
+// precisa passar por aqui antes de ir pro innerHTML, senão alguém pode se cadastrar
+// com um nome tipo "<img src=x onerror=...>" e rodar código dentro da sessão do admin.
+function escapeHtml(valor){
+  const div = document.createElement('div');
+  div.textContent = valor === undefined || valor === null ? '' : String(valor);
+  return div.innerHTML;
+}
+// ---- Mesma ideia, mas pra usar dentro de atributos value="..." (mantém aspas seguras) ----
+function escapeAttr(valor){
+  return escapeHtml(valor).replace(/"/g, '&quot;');
+}
+
 // ---- Utilidades de data (mesmas regras do site público) ----
 function todayDateOnly(){
   const d = new Date();
@@ -28,6 +41,39 @@ function computeWeekStartStr(dateStr){
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() - d.getDay());
   return formatDateStr(d);
+}
+function nomeServico(s){
+  return s === 'cal-manicure' ? 'Manicure' : (s === 'cal-massage' ? 'Massagem' : (s || 'Serviço'));
+}
+// ---- Converte o ID técnico do serviço ("cal-manicure"/"cal-massage") pra chave usada na trava
+// semanal ("manicure"/"massagem" — igual ao configKey do script.js). NÃO é um simples "tira o cal-":
+// "cal-massage" não vira "massagem" só cortando prefixo, por isso existe esse mapeamento explícito.
+function containerIdParaConfigKey(servico){
+  if(servico === 'cal-manicure') return 'manicure';
+  if(servico === 'cal-massage') return 'massagem';
+  return (servico || '').replace('cal-', '');
+}
+function dataFormatadaBr(d){
+  return d ? d.split('-').reverse().join('/') : '';
+}
+function nomeDiaSemana(dateStr){
+  const dias = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+  return dias[new Date(dateStr + 'T00:00:00').getDay()];
+}
+// ---- Agrupa uma lista de agendamentos em { servico: { data: [agendamentos ordenados por horário] } } ----
+function agruparPorDataEServico(agendamentos){
+  const grupos = {};
+  agendamentos.forEach(ag => {
+    const servico = ag.servico || 'outro';
+    const data = ag.data || 'sem-data';
+    if(!grupos[data]) grupos[data] = {};
+    if(!grupos[data][servico]) grupos[data][servico] = [];
+    grupos[data][servico].push(ag);
+  });
+  Object.values(grupos).forEach(porServico => {
+    Object.values(porServico).forEach(lista => lista.sort((a, b) => (a.horario || '').localeCompare(b.horario || '')));
+  });
+  return grupos;
 }
 
 // =====================================================================
@@ -71,7 +117,7 @@ function mostrarPainel(email){
   document.getElementById('adminPanel').style.display = '';
   const info = document.getElementById('adminHeaderInfo');
   info.style.display = '';
-  info.innerHTML = `${email} · <a href="#" id="adminLogoutLink">Sair</a>`;
+  info.innerHTML = `${escapeHtml(email)} · <a href="#" id="adminLogoutLink">Sair</a>`;
   document.getElementById('adminLogoutLink').addEventListener('click', (e) => {
     e.preventDefault();
     window.fbSignOut(window.auth);
@@ -152,27 +198,27 @@ function renderEventosAdmin(eventos){
     return;
   }
   container.innerHTML = eventos.map(ev => `
-    <div class="admin-event-row" data-id="${ev.id}">
+    <div class="admin-event-row" data-id="${escapeAttr(ev.id)}">
       <div class="admin-event-thumb-wrap">
-        <img src="${ev.imgData || ev.img || ''}" alt="" class="admin-event-thumb admin-event-preview" onerror="this.style.opacity=0.2">
+        <img src="${escapeAttr(ev.imgData || ev.img || '')}" alt="" class="admin-event-thumb admin-event-preview" onerror="this.style.opacity=0.2">
       </div>
       <div class="admin-event-fields">
         <label class="field-label">Título</label>
-        <input type="text" class="ev-titulo" value="${(ev.title || '').replace(/"/g,'&quot;')}" placeholder="Título do evento">
+        <input type="text" class="ev-titulo" value="${escapeAttr(ev.title)}" placeholder="Título do evento">
 
         <label class="field-label">Imagem (escolha um arquivo do computador)</label>
         <input type="file" class="ev-imagem-arquivo" accept="image/*">
         <p class="admin-field-hint">Ou, se preferir, cole o caminho/link de uma imagem já existente:</p>
-        <input type="text" class="ev-imagem" value="${(ev.img || '').replace(/"/g,'&quot;')}" placeholder="images/evento.png ou https://...">
+        <input type="text" class="ev-imagem" value="${escapeAttr(ev.img)}" placeholder="images/evento.png ou https://...">
 
         <label class="field-label">Data / horário / local</label>
-        <input type="text" class="ev-datahora" value="${(ev.time || '').replace(/"/g,'&quot;')}" placeholder="Ex: 02 AGO · 19h — Salão Social">
+        <input type="text" class="ev-datahora" value="${escapeAttr(ev.time)}" placeholder="Ex: 02 AGO · 19h — Salão Social">
 
         <label class="field-label">Descrição</label>
-        <textarea class="ev-descricao" rows="2" placeholder="Descrição do evento">${ev.description || ''}</textarea>
+        <textarea class="ev-descricao" rows="2" placeholder="Descrição do evento">${escapeHtml(ev.description)}</textarea>
 
         <label class="field-label">Link (opcional)</label>
-        <input type="text" class="ev-link" value="${(ev.link || '').replace(/"/g,'&quot;')}" placeholder="https://...">
+        <input type="text" class="ev-link" value="${escapeAttr(ev.link)}" placeholder="https://...">
       </div>
       <div class="admin-event-actions">
         <button type="button" class="admin-btn-salvar">Salvar</button>
@@ -269,7 +315,9 @@ document.getElementById('btnCarregarAgendamentos').addEventListener('click', asy
     agendamentos.sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
     agendamentosCarregados = agendamentos;
     renderAgendamentosTable(agendamentos);
+    preencherSeletorDeDia(agendamentos);
     document.getElementById('btnBaixarPdf').style.display = agendamentos.length ? '' : 'none';
+    document.getElementById('pdfDiaSelect').style.display = agendamentos.length ? '' : 'none';
   }catch(e){
     console.error('Erro ao carregar agendamentos:', e);
     alert('Não foi possível carregar os agendamentos. Veja o console para detalhes.');
@@ -278,11 +326,30 @@ document.getElementById('btnCarregarAgendamentos').addEventListener('click', asy
   btn.textContent = 'Carregar';
 });
 
+function preencherSeletorDeDia(agendamentos){
+  const select = document.getElementById('pdfDiaSelect');
+  const datasUnicas = [...new Set(agendamentos.map(ag => ag.data).filter(Boolean))].sort();
+  select.innerHTML = '<option value="todos">Todos os dias</option>' + datasUnicas.map(data =>
+    `<option value="${escapeAttr(data)}">${escapeHtml(dataFormatadaBr(data))} · ${escapeHtml(nomeDiaSemana(data))}</option>`
+  ).join('');
+}
+
 document.getElementById('btnBaixarPdf').addEventListener('click', () => {
   if(!agendamentosCarregados.length) return;
+  const diaEscolhido = document.getElementById('pdfDiaSelect').value;
+  const dadosFiltrados = diaEscolhido === 'todos'
+    ? agendamentosCarregados
+    : agendamentosCarregados.filter(ag => ag.data === diaEscolhido);
+
+  if(!dadosFiltrados.length){
+    alert('Não há agendamentos para o dia selecionado.');
+    return;
+  }
+
   const { inicio, fim } = getSemanaAtual();
-  const nomeServico = (s) => s === 'cal-manicure' ? 'Manicure' : (s === 'cal-massage' ? 'Massagem' : (s || ''));
-  const dataFormatada = (d) => d ? d.split('-').reverse().join('/') : '';
+  const subtitulo = diaEscolhido === 'todos'
+    ? `Relatório de agendamentos — semana de ${dataFormatadaBr(inicio)} a ${dataFormatadaBr(fim)}`
+    : `Relatório de agendamentos — ${dataFormatadaBr(diaEscolhido)} · ${nomeDiaSemana(diaEscolhido)}`;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -291,53 +358,101 @@ document.getElementById('btnBaixarPdf').addEventListener('click', () => {
   doc.text('Grêmio Social Recreativo Miracema', 14, 18);
   doc.setFontSize(11);
   doc.setTextColor(90);
-  doc.text(`Relatório de agendamentos — semana de ${dataFormatada(inicio)} a ${dataFormatada(fim)}`, 14, 26);
+  doc.text(subtitulo, 14, 26);
   doc.setTextColor(0);
 
-  doc.autoTable({
-    startY: 34,
-    head: [['Serviço', 'Data', 'Horário', 'Nome', 'Contato', 'Crachá']],
-    body: agendamentosCarregados.map(ag => [
-      nomeServico(ag.servico), dataFormatada(ag.data), ag.horario || '', ag.nome || '', ag.contato || '', ag.cracha || ''
-    ]),
-    headStyles: { fillColor: [18, 148, 106] },
-    styles: { fontSize: 9, cellPadding: 4 },
-    alternateRowStyles: { fillColor: [244, 248, 246] }
+  const grupos = agruparPorDataEServico(dadosFiltrados);
+  const datasOrdenadas = Object.keys(grupos).sort();
+
+  let y = 36;
+  const margemPagina = doc.internal.pageSize.getHeight() - 20;
+
+  datasOrdenadas.forEach(data => {
+    if(y > margemPagina - 14){ doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setTextColor(18, 148, 106);
+    doc.text(`${dataFormatadaBr(data)} · ${nomeDiaSemana(data)}`, 14, y);
+    doc.setTextColor(0);
+    y += 6;
+
+    const servicosOrdenados = Object.keys(grupos[data]).sort((a, b) => nomeServico(a).localeCompare(nomeServico(b)));
+    servicosOrdenados.forEach(servico => {
+      if(y > margemPagina - 10){ doc.addPage(); y = 20; }
+      doc.setFontSize(10.5);
+      doc.setTextColor(90);
+      doc.text(nomeServico(servico), 14, y);
+      doc.setTextColor(0);
+      y += 3;
+
+      doc.autoTable({
+        startY: y,
+        margin: { left: 14, right: 14 },
+        head: [['Horário', 'Nome', 'Contato', 'Crachá']],
+        body: grupos[data][servico].map(ag => [ag.horario || '', ag.nome || '', ag.contato || '', ag.cracha || '']),
+        headStyles: { fillColor: [18, 148, 106] },
+        styles: { fontSize: 9, cellPadding: 4 },
+        alternateRowStyles: { fillColor: [244, 248, 246] }
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    });
   });
 
-  doc.save(`agendamentos_${inicio}_a_${fim}.pdf`);
+  const nomeArquivo = diaEscolhido === 'todos' ? `agendamentos_${inicio}_a_${fim}.pdf` : `agendamentos_${diaEscolhido}.pdf`;
+  doc.save(nomeArquivo);
 });
 
 function renderAgendamentosTable(agendamentos){
-  const table = document.getElementById('agendamentosTable');
-  const tbody = document.getElementById('agendamentosTableBody');
+  const container = document.getElementById('agendamentosGrouped');
   const vazio = document.getElementById('agendamentosVazio');
 
   if(!agendamentos.length){
-    table.style.display = 'none';
+    container.innerHTML = '';
     vazio.style.display = '';
     vazio.textContent = 'Nenhum agendamento encontrado para a semana atual.';
     return;
   }
   vazio.style.display = 'none';
-  table.style.display = '';
 
-  tbody.innerHTML = agendamentos.map(ag => `
-    <tr data-id="${ag.id}">
-      <td><input type="text" class="ag-servico" value="${(ag.servico || '').replace(/"/g,'&quot;')}"></td>
-      <td><input type="text" class="ag-data" value="${(ag.data || '').replace(/"/g,'&quot;')}"></td>
-      <td><input type="text" class="ag-horario" value="${(ag.horario || '').replace(/"/g,'&quot;')}"></td>
-      <td><input type="text" class="ag-nome" value="${(ag.nome || '').replace(/"/g,'&quot;')}"></td>
-      <td><input type="text" class="ag-contato" value="${(ag.contato || '').replace(/"/g,'&quot;')}"></td>
-      <td><input type="text" class="ag-cracha" value="${(ag.cracha || '').replace(/"/g,'&quot;')}"></td>
-      <td class="admin-table-actions">
-        <button type="button" class="admin-btn-salvar-linha">Salvar</button>
-        <button type="button" class="admin-btn-excluir-linha">Excluir</button>
-      </td>
-    </tr>
-  `).join('');
+  const grupos = agruparPorDataEServico(agendamentos);
+  const datasOrdenadas = Object.keys(grupos).sort();
 
-  tbody.querySelectorAll('tr').forEach(row => {
+  container.innerHTML = datasOrdenadas.map(data => {
+    const servicosOrdenados = Object.keys(grupos[data]).sort((a, b) => nomeServico(a).localeCompare(nomeServico(b)));
+    const blocosServico = servicosOrdenados.map(servico => {
+      const lista = grupos[data][servico];
+      const linhas = lista.map(ag => `
+        <tr data-id="${escapeAttr(ag.id)}">
+          <td style="width:110px"><input type="text" class="ag-servico" value="${escapeAttr(ag.servico)}" title="Serviço (ID técnico)"></td>
+          <td style="width:100px"><input type="text" class="ag-data" value="${escapeAttr(ag.data)}" title="Data (AAAA-MM-DD)"></td>
+          <td style="width:80px"><input type="text" class="ag-horario" value="${escapeAttr(ag.horario)}"></td>
+          <td><input type="text" class="ag-nome" value="${escapeAttr(ag.nome)}"></td>
+          <td><input type="text" class="ag-contato" value="${escapeAttr(ag.contato)}"></td>
+          <td style="width:80px"><input type="text" class="ag-cracha" value="${escapeAttr(ag.cracha)}"></td>
+          <td class="admin-table-actions">
+            <button type="button" class="admin-btn-salvar-linha">Salvar</button>
+            <button type="button" class="admin-btn-excluir-linha">Excluir</button>
+          </td>
+        </tr>`).join('');
+      return `
+        <div class="admin-agenda-servico-sub-bloco">
+          <h4 class="admin-agenda-servico-sub-titulo">${escapeHtml(nomeServico(servico))}</h4>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th style="width:110px">Serviço</th><th style="width:100px">Data</th><th style="width:80px">Horário</th><th>Nome</th><th>Contato</th><th style="width:80px">Crachá</th><th></th></tr></thead>
+              <tbody>${linhas}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="admin-agenda-data-bloco">
+        <h3 class="admin-agenda-data-titulo">${escapeHtml(dataFormatadaBr(data))} <span>· ${escapeHtml(nomeDiaSemana(data))}</span></h3>
+        ${blocosServico}
+      </div>`;
+  }).join('');
+
+  container.querySelectorAll('tbody tr').forEach(row => {
     const id = row.dataset.id;
     const original = agendamentos.find(a => a.id === id); // valores antes de qualquer edição
 
@@ -369,9 +484,13 @@ function renderAgendamentosTable(agendamentos){
       try{
         await window.fbDeleteDoc(window.fbDoc(window.db, 'agendamentos', id));
         await liberarVagaEBloqueio(original);
-        row.remove();
         agendamentosCarregados = agendamentosCarregados.filter(a => a.id !== id);
-        if(!agendamentosCarregados.length) document.getElementById('btnBaixarPdf').style.display = 'none';
+        renderAgendamentosTable(agendamentosCarregados);
+        preencherSeletorDeDia(agendamentosCarregados);
+        if(!agendamentosCarregados.length){
+          document.getElementById('btnBaixarPdf').style.display = 'none';
+          document.getElementById('pdfDiaSelect').style.display = 'none';
+        }
       }catch(e){
         console.error('Erro ao excluir agendamento:', e);
         alert('Não foi possível excluir. Veja o console para detalhes.');
@@ -398,14 +517,21 @@ async function liberarVagaEBloqueio(ag){
   try{
     // se esse agendamento tinha um sócio vinculado, libera só a trava DESSE serviço (os outros continuam livres)
     if(ag.uid){
-      const configKey = (ag.servico || '').replace('cal-', ''); // "cal-manicure" -> "manicure"
+      const configKey = containerIdParaConfigKey(ag.servico);
       const bloqueioRef = window.fbDoc(window.db, 'meus-agendamentos', ag.uid);
       const bloqueioSnap = await window.fbGetDoc(bloqueioRef);
       if(bloqueioSnap.exists()){
-        const trava = bloqueioSnap.data()[configKey];
-        // só apaga se for a trava referente a ESSE agendamento (evita apagar um agendamento novo por engano)
+        const dadosAtuais = bloqueioSnap.data();
+        const trava = dadosAtuais[configKey];
+        // só mexe se for a trava referente a ESSE agendamento (evita apagar um agendamento novo por engano)
         if(trava && trava.data === ag.data && trava.horario === ag.horario){
-          await window.fbUpdateDoc(bloqueioRef, { [configKey]: null });
+          const outrasChaves = Object.keys(dadosAtuais).filter(k => k !== configKey);
+          if(outrasChaves.length === 0){
+            // não sobra trava de nenhum outro serviço: apaga o documento inteiro, não deixa ele vazio
+            await window.fbDeleteDoc(bloqueioRef);
+          } else {
+            await window.fbUpdateDoc(bloqueioRef, { [configKey]: window.fbDeleteField() });
+          }
         }
       }
     }
@@ -426,12 +552,17 @@ async function sincronizarVagaEBloqueio(original, novo){
       criadoEm: window.fbServerTimestamp()
     });
     if(original.uid){
-      const configKeyNovo = (novo.servico || '').replace('cal-', '');
+      const configKeyNovo = containerIdParaConfigKey(novo.servico);
+      const semanaKeyNovo = computeWeekStartStr(novo.data);
+      const duracaoSemanas = configKeyNovo === 'manicure' ? 2 : 1; // manicure: semana agendada + a seguinte
+      const liberaEmDate = new Date(semanaKeyNovo + 'T00:00:00');
+      liberaEmDate.setDate(liberaEmDate.getDate() + 7 * duracaoSemanas);
       await window.fbSetDoc(window.fbDoc(window.db, 'meus-agendamentos', original.uid), {
         [configKeyNovo]: {
           data: novo.data,
           horario: novo.horario,
-          semanaKey: computeWeekStartStr(novo.data)
+          semanaKey: semanaKeyNovo,
+          liberaEm: formatDateStr(liberaEmDate)
         }
       }, { merge: true });
     }
@@ -477,6 +608,9 @@ async function carregarConfigDias(){
           `).join('')}
         </div>
       ` : ''}
+      <p class="admin-field-hint" style="margin-top:14px;">Bloquear novos agendamentos até (opcional):</p>
+      <input type="date" class="config-bloqueado-ate" style="max-width:180px;">
+      <button type="button" class="admin-btn-secundario config-limpar-bloqueio" style="padding:6px 12px; font-size:12px; margin-left:8px;">Remover bloqueio</button>
     </div>
   `).join('');
 
@@ -495,6 +629,11 @@ async function carregarConfigDias(){
         const radio = card.querySelector(`.dia-noite-radio[value="${valorNoite}"]`);
         if(radio) radio.checked = true;
       }
+      const inputBloqueio = card.querySelector('.config-bloqueado-ate');
+      if(dados.bloqueadoAte) inputBloqueio.value = dados.bloqueadoAte;
+      card.querySelector('.config-limpar-bloqueio').addEventListener('click', () => {
+        inputBloqueio.value = '';
+      });
     }catch(e){
       console.error(`Erro ao carregar config de ${servico.key}:`, e);
     }
@@ -513,6 +652,8 @@ document.getElementById('btnSalvarConfig').addEventListener('click', async () =>
         const radioMarcado = card.querySelector('.dia-noite-radio:checked');
         payload.diaNoite = (radioMarcado && radioMarcado.value !== '') ? parseInt(radioMarcado.value, 10) : null;
       }
+      const valorBloqueio = card.querySelector('.config-bloqueado-ate').value;
+      payload.bloqueadoAte = valorBloqueio || null;
       await window.fbSetDoc(window.fbDoc(window.db, 'config', servico.key), payload);
     }
     msg.textContent = 'Salvo! O site já reflete as mudanças em tempo real.';
@@ -558,10 +699,10 @@ function renderSociosTable(socios){
   table.style.display = '';
 
   tbody.innerHTML = socios.map(s => `
-    <tr data-uid="${s.uid}">
-      <td>${(s.cracha || '—')}</td>
-      <td>${(s.nome || '—')}</td>
-      <td>${(s.cracha || '')}@socios.gremio-miracema.local</td>
+    <tr data-uid="${escapeAttr(s.uid)}">
+      <td>${escapeHtml(s.cracha || '—')}</td>
+      <td>${escapeHtml(s.nome || '—')}</td>
+      <td>${escapeHtml(s.cracha || '')}@socios.gremio-miracema.local</td>
       <td class="admin-table-actions">
         <button type="button" class="admin-btn-excluir-linha">Excluir perfil</button>
       </td>
@@ -583,3 +724,51 @@ function renderSociosTable(socios){
     });
   });
 }
+
+// =====================================================================
+// ABA MANUTENÇÃO — apaga agendamentos/vagas antigos em lote
+// =====================================================================
+document.getElementById('btnLimparAntigos').addEventListener('click', async () => {
+  const dias = parseInt(document.querySelector('input[name="dias-corte"]:checked').value, 10);
+  const msg = document.getElementById('limpezaMsg');
+
+  const corte = todayDateOnly();
+  corte.setDate(corte.getDate() - dias);
+  const corteStr = formatDateStr(corte);
+
+  if(!confirm(`Apagar TODOS os agendamentos e vagas com data anterior a ${corteStr.split('-').reverse().join('/')}? Essa ação não pode ser desfeita.`)) return;
+
+  const btn = document.getElementById('btnLimparAntigos');
+  btn.disabled = true;
+  btn.textContent = 'Apagando...';
+  msg.textContent = '';
+
+  try{
+    // apaga de "agendamentos"
+    const qAgendamentos = window.fbQuery(
+      window.fbCollection(window.db, 'agendamentos'),
+      window.fbWhere('data', '<', corteStr)
+    );
+    const snapAgendamentos = await window.fbGetDocs(qAgendamentos);
+    await Promise.all(snapAgendamentos.docs.map(d => window.fbDeleteDoc(d.ref)));
+
+    // apaga de "vagas"
+    const qVagas = window.fbQuery(
+      window.fbCollection(window.db, 'vagas'),
+      window.fbWhere('data', '<', corteStr)
+    );
+    const snapVagas = await window.fbGetDocs(qVagas);
+    await Promise.all(snapVagas.docs.map(d => window.fbDeleteDoc(d.ref)));
+
+    const total = snapAgendamentos.size + snapVagas.size;
+    msg.style.color = 'var(--green-deep)';
+    msg.textContent = `Pronto! ${total} registro(s) apagado(s) (${snapAgendamentos.size} agendamento(s), ${snapVagas.size} vaga(s)).`;
+  }catch(e){
+    console.error('Erro ao limpar registros antigos:', e);
+    msg.style.color = '#C0392B';
+    msg.textContent = 'Não foi possível apagar. Veja o console para detalhes.';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Apagar registros antigos';
+});

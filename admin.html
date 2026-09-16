@@ -57,6 +57,9 @@
       <button type="button" class="admin-tab" data-tab="config">
         <span class="admin-nav-icon">📅</span> Dias de atendimento
       </button>
+      <button type="button" class="admin-tab" data-tab="manutencao">
+        <span class="admin-nav-icon">🧹</span> Manutenção
+      </button>
     </nav>
     <div class="admin-sidebar-footer" id="adminHeaderInfo"></div>
   </aside>
@@ -84,20 +87,14 @@
         </div>
         <div class="admin-section-head-actions">
           <button type="button" class="book-btn" id="btnCarregarAgendamentos">Carregar</button>
+          <select id="pdfDiaSelect" class="admin-pdf-select" style="display:none;">
+            <option value="todos">Todos os dias</option>
+          </select>
           <button type="button" class="admin-btn-secundario" id="btnBaixarPdf" style="display:none;">Baixar PDF</button>
         </div>
       </div>
       <p id="agendamentosVazio" class="admin-muted admin-empty-state">Clique em "Carregar" para ver os agendamentos da semana.</p>
-      <div class="admin-table-wrap">
-        <table class="admin-table" id="agendamentosTable" style="display:none;">
-          <thead>
-            <tr>
-              <th>Serviço</th><th>Data</th><th>Horário</th><th>Nome</th><th>Contato</th><th>Crachá</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="agendamentosTableBody"></tbody>
-        </table>
-      </div>
+      <div id="agendamentosGrouped"></div>
     </section>
 
     <!-- ABA SÓCIOS CADASTRADOS -->
@@ -135,18 +132,42 @@
       <p class="form-error" id="configSaveMsg"></p>
     </section>
 
+    <!-- ABA MANUTENÇÃO -->
+    <section class="admin-tab-panel" id="tab-manutencao" style="display:none;">
+      <div class="admin-section-head">
+        <div>
+          <h2>Limpeza de dados antigos</h2>
+          <p class="admin-muted">Apaga agendamentos (e as vagas correspondentes) mais antigos que o período escolhido. Isso não pode ser desfeito.</p>
+        </div>
+      </div>
+      <div class="admin-config-card">
+        <h4>Apagar registros anteriores a</h4>
+        <div class="admin-config-dias">
+          <label class="admin-checkbox-pill"><input type="radio" name="dias-corte" value="30"> <span>30 dias</span></label>
+          <label class="admin-checkbox-pill"><input type="radio" name="dias-corte" value="90" checked> <span>90 dias</span></label>
+          <label class="admin-checkbox-pill"><input type="radio" name="dias-corte" value="180"> <span>180 dias</span></label>
+          <label class="admin-checkbox-pill"><input type="radio" name="dias-corte" value="365"> <span>1 ano</span></label>
+        </div>
+        <button type="button" class="admin-btn-excluir" id="btnLimparAntigos" style="margin-top:16px;">Apagar registros antigos</button>
+        <p class="form-error" id="limpezaMsg"></p>
+      </div>
+    </section>
+
   </main>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, setDoc, getDoc, doc, deleteDoc, updateDoc,
+    getFirestore, collection, addDoc, setDoc, getDoc, doc, deleteDoc, updateDoc, deleteField,
     onSnapshot, query, where, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import {
     getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import {
+    initializeAppCheck, ReCaptchaV3Provider
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCZF9cFpevic1dQPXaPsrTNDuZKcqQOf8o",
@@ -160,6 +181,16 @@
   // Nome diferente do app padrão: isola a sessão de login do admin da sessão de login
   // dos sócios (index.html), que também roda na mesma origem/navegador.
   const app = initializeApp(firebaseConfig, "admin-app");
+
+  // ---- App Check: mesma chave usada no index.html.
+  const CHAVE_RECAPTCHA = "COLE_AQUI_A_CHAVE_DO_RECAPTCHA";
+  if(CHAVE_RECAPTCHA && CHAVE_RECAPTCHA !== "COLE_AQUI_A_CHAVE_DO_RECAPTCHA"){
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(CHAVE_RECAPTCHA),
+      isTokenAutoRefreshEnabled: true
+    });
+  }
+
   window.db = getFirestore(app);
   window.fbCollection = collection;
   window.fbAddDoc = addDoc;
@@ -168,6 +199,7 @@
   window.fbDoc = doc;
   window.fbDeleteDoc = deleteDoc;
   window.fbUpdateDoc = updateDoc;
+  window.fbDeleteField = deleteField;
   window.fbOnSnapshot = onSnapshot;
   window.fbQuery = query;
   window.fbWhere = where;

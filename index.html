@@ -175,12 +175,15 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, setDoc, getDoc, doc, onSnapshot, serverTimestamp
+    getFirestore, collection, setDoc, getDoc, doc, onSnapshot, serverTimestamp, runTransaction
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
     onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import {
+    initializeAppCheck, ReCaptchaV3Provider
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCZF9cFpevic1dQPXaPsrTNDuZKcqQOf8o",
@@ -192,14 +195,26 @@
   };
 
   const app = initializeApp(firebaseConfig);
+
+  // ---- App Check: protege contra bots/scripts chamando o Firestore direto, fora do site.
+  // TODO: troque "COLE_AQUI_A_CHAVE_DO_RECAPTCHA" pela chave de site do reCAPTCHA v3
+  // (veja o passo a passo que o Claude te passou). Enquanto não trocar, isso fica sem efeito.
+  const CHAVE_RECAPTCHA = "COLE_AQUI_A_CHAVE_DO_RECAPTCHA";
+  if(CHAVE_RECAPTCHA && CHAVE_RECAPTCHA !== "COLE_AQUI_A_CHAVE_DO_RECAPTCHA"){
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(CHAVE_RECAPTCHA),
+      isTokenAutoRefreshEnabled: true
+    });
+  }
+
   window.db = getFirestore(app);
   window.fbCollection = collection;
-  window.fbAddDoc = addDoc;
   window.fbSetDoc = setDoc;
   window.fbGetDoc = getDoc;
   window.fbDoc = doc;
   window.fbOnSnapshot = onSnapshot;
   window.fbServerTimestamp = serverTimestamp;
+  window.fbRunTransaction = runTransaction;
 
   window.auth = getAuth(app);
   window.fbCreateUser = createUserWithEmailAndPassword;
