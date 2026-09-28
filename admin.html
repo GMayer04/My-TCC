@@ -45,23 +45,26 @@
       </div>
     </div>
     <nav class="admin-nav">
-      <button type="button" class="admin-tab active" data-tab="eventos">
-        <span class="admin-nav-icon">🎉</span> Eventos
+      <button type="button" class="admin-tab active" data-tab="dashboard">
+        Dashboard
+      </button>
+      <button type="button" class="admin-tab" data-tab="eventos">
+        Eventos
       </button>
       <button type="button" class="admin-tab" data-tab="agendamentos">
-        <span class="admin-nav-icon">📋</span> Agendamentos
+        Agendamentos
       </button>
       <button type="button" class="admin-tab" data-tab="socios">
-        <span class="admin-nav-icon">👤</span> Sócios cadastrados
+        Sócios cadastrados
       </button>
       <button type="button" class="admin-tab" data-tab="solicitacoes">
-        <span class="admin-nav-icon">📩</span> Solicitações
+        Solicitações
       </button>
       <button type="button" class="admin-tab" data-tab="config">
-        <span class="admin-nav-icon">📅</span> Dias de atendimento
+        Dias de atendimento
       </button>
       <button type="button" class="admin-tab" data-tab="manutencao">
-        <span class="admin-nav-icon">🧹</span> Manutenção
+        Manutenção
       </button>
     </nav>
     <div class="admin-sidebar-footer" id="adminHeaderInfo"></div>
@@ -69,8 +72,22 @@
 
   <main class="admin-content">
 
+    <!-- ABA DASHBOARD -->
+    <section class="admin-tab-panel" id="tab-dashboard">
+      <div class="admin-section-head">
+        <div>
+          <h2>Visão geral</h2>
+          <p class="admin-muted">Resumo do mês e da semana atual.</p>
+        </div>
+        <button type="button" class="book-btn" id="btnAtualizarDashboard">Atualizar</button>
+      </div>
+      <div class="admin-dashboard-grid" id="dashboardGrid">
+        <p class="admin-muted">Clique em "Atualizar" para carregar os números.</p>
+      </div>
+    </section>
+
     <!-- ABA EVENTOS -->
-    <section class="admin-tab-panel" id="tab-eventos">
+    <section class="admin-tab-panel" id="tab-eventos" style="display:none;">
       <div class="admin-section-head">
         <div>
           <h2>Cards de eventos</h2>

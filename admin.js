@@ -125,6 +125,7 @@ function mostrarPainel(email){
   escutarEventos();
   carregarConfigDias();
   escutarSolicitacoes();
+  carregarDashboard();
 }
 
 document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
@@ -890,3 +891,151 @@ function renderSolicitacoes(solicitacoes){
 }
 
 // (chamada real acontece dentro de mostrarPainel, só depois do login confirmado)
+
+// =====================================================================
+// ABA DASHBOARD — visão geral do mês e da semana
+// =====================================================================
+// Mesmos horários definidos no script.js do site público. Se os horários dos
+// serviços mudarem lá, precisam ser atualizados aqui também (não é lido de um lugar só
+// porque cada página carrega seu próprio script, sem módulo compartilhado entre elas).
+const SERVICOS_HORARIOS = {
+  'cal-manicure': {
+    label: 'Manicure',
+    slotsTemplate: ["11:00","11:30","12:00","12:30","13:00","13:30"],
+    slotsNoite: []
+  },
+  'cal-massage': {
+    label: 'Massagem',
+    slotsTemplate: ["11:10","11:20","11:30","11:40","11:50","12:10","12:20","12:30","12:40","12:50","13:10","13:20","13:30","13:40","13:50"],
+    slotsNoite: ["19:00","19:10","19:20","19:30","19:40","19:50","20:10","20:20","20:30","20:40","20:50"]
+  }
+};
+
+function primeiroEUltimoDiaDoMes(){
+  const hoje = todayDateOnly();
+  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const ultimo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  return { inicio: formatDateStr(primeiro), fim: formatDateStr(ultimo) };
+}
+
+// Quantas vagas (dia + noite, se aplicável) um serviço oferece num dia específico,
+// considerando dias de atendimento, bloqueio manual e o dia da semana com horário de noite.
+function capacidadeDoDia(servicoKey, date, dateStr, cfg){
+  if(cfg.bloqueadoAte && dateStr <= cfg.bloqueadoAte) return 0;
+  const weekday = date.getDay();
+  if(!(cfg.openWeekdays || []).includes(weekday)) return 0;
+  const horarios = SERVICOS_HORARIOS[servicoKey];
+  let total = horarios.slotsTemplate.length;
+  if(cfg.diaNoite !== undefined && cfg.diaNoite !== null && weekday === cfg.diaNoite){
+    total += horarios.slotsNoite.length;
+  }
+  return total;
+}
+
+document.getElementById('btnAtualizarDashboard').addEventListener('click', carregarDashboard);
+
+async function carregarDashboard(){
+  const grid = document.getElementById('dashboardGrid');
+  const btn = document.getElementById('btnAtualizarDashboard');
+  btn.disabled = true;
+  btn.textContent = 'Carregando...';
+
+  try{
+    // ---- Agendamentos do mês (total + por serviço) ----
+    const { inicio: inicioMes, fim: fimMes } = primeiroEUltimoDiaDoMes();
+    const qMes = window.fbQuery(
+      window.fbCollection(window.db, 'agendamentos'),
+      window.fbWhere('data', '>=', inicioMes),
+      window.fbWhere('data', '<=', fimMes)
+    );
+    const snapMes = await window.fbGetDocs(qMes);
+    let totalMes = 0;
+    const porServicoMes = { 'cal-manicure': 0, 'cal-massage': 0 };
+    snapMes.forEach(d => {
+      totalMes++;
+      const s = d.data().servico;
+      if(porServicoMes[s] !== undefined) porServicoMes[s]++;
+    });
+
+    // ---- Capacidade x ocupação da semana atual, por serviço ----
+    const { inicio: inicioSemana, fim: fimSemana } = getSemanaAtual();
+    const hoje = todayDateOnly();
+    const configs = {};
+    for(const key of Object.keys(SERVICOS_HORARIOS)){
+      const configKey = key === 'cal-manicure' ? 'manicure' : 'massagem';
+      const snap = await window.fbGetDoc(window.fbDoc(window.db, 'config', configKey));
+      configs[key] = snap.exists() ? snap.data() : {};
+    }
+    // valores padrão caso ainda não tenha sido configurado no Firestore
+    if(!('openWeekdays' in configs['cal-manicure'])) configs['cal-manicure'].openWeekdays = [3,5];
+    if(!('openWeekdays' in configs['cal-massage'])) configs['cal-massage'].openWeekdays = [1,4];
+
+    const capacidadeSemana = { 'cal-manicure': 0, 'cal-massage': 0 };
+    for(let d = new Date(hoje); formatDateStr(d) <= fimSemana; d.setDate(d.getDate() + 1)){
+      const dStr = formatDateStr(d);
+      for(const key of Object.keys(SERVICOS_HORARIOS)){
+        capacidadeSemana[key] += capacidadeDoDia(key, d, dStr, configs[key]);
+      }
+    }
+
+    const qVagasSemana = window.fbQuery(
+      window.fbCollection(window.db, 'vagas'),
+      window.fbWhere('data', '>=', formatDateStr(hoje)),
+      window.fbWhere('data', '<=', fimSemana)
+    );
+    const snapVagasSemana = await window.fbGetDocs(qVagasSemana);
+    const ocupadasSemana = { 'cal-manicure': 0, 'cal-massage': 0 };
+    snapVagasSemana.forEach(d => {
+      const s = d.data().servico;
+      if(ocupadasSemana[s] !== undefined) ocupadasSemana[s]++;
+    });
+
+    const vagasRestantes = {
+      'cal-manicure': Math.max(0, capacidadeSemana['cal-manicure'] - ocupadasSemana['cal-manicure']),
+      'cal-massage': Math.max(0, capacidadeSemana['cal-massage'] - ocupadasSemana['cal-massage'])
+    };
+
+    // ---- Solicitações pendentes (bônus rápido) ----
+    const snapSolicitacoes = await window.fbGetDocs(window.fbCollection(window.db, 'solicitacoes-socio'));
+    let pendentes = 0;
+    snapSolicitacoes.forEach(d => { if(d.data().status === 'pendente') pendentes++; });
+
+    renderDashboard({ totalMes, porServicoMes, vagasRestantes, capacidadeSemana, pendentes });
+  }catch(e){
+    console.error('Erro ao carregar dashboard:', e);
+    grid.innerHTML = '<p class="admin-muted">Não foi possível carregar os dados. Veja o console para detalhes.</p>';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Atualizar';
+}
+
+function renderDashboard(dados){
+  const grid = document.getElementById('dashboardGrid');
+  grid.innerHTML = `
+    <div class="admin-stat-card">
+      <span class="admin-stat-label">Agendamentos este mês</span>
+      <span class="admin-stat-value">${dados.totalMes}</span>
+    </div>
+    <div class="admin-stat-card">
+      <span class="admin-stat-label">Manicure este mês</span>
+      <span class="admin-stat-value">${dados.porServicoMes['cal-manicure']}</span>
+    </div>
+    <div class="admin-stat-card">
+      <span class="admin-stat-label">Massagem este mês</span>
+      <span class="admin-stat-value">${dados.porServicoMes['cal-massage']}</span>
+    </div>
+    <div class="admin-stat-card">
+      <span class="admin-stat-label">Solicitações pendentes</span>
+      <span class="admin-stat-value">${dados.pendentes}</span>
+    </div>
+    <div class="admin-stat-card admin-stat-wide">
+      <span class="admin-stat-label">Vagas livres esta semana — Manicure</span>
+      <span class="admin-stat-value">${dados.vagasRestantes['cal-manicure']} <span class="admin-stat-total">/ ${dados.capacidadeSemana['cal-manicure']}</span></span>
+    </div>
+    <div class="admin-stat-card admin-stat-wide">
+      <span class="admin-stat-label">Vagas livres esta semana — Massagem</span>
+      <span class="admin-stat-value">${dados.vagasRestantes['cal-massage']} <span class="admin-stat-total">/ ${dados.capacidadeSemana['cal-massage']}</span></span>
+    </div>
+  `;
+}

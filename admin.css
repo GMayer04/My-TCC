@@ -93,11 +93,6 @@
   border-radius:10px;
   transition:background .15s ease, color .15s ease;
 }
-.admin-nav-icon{
-  font-size:16px;
-  width:20px;
-  text-align:center;
-}
 .admin-tab:hover{
   background:var(--bg);
 }
@@ -517,4 +512,48 @@
 .admin-pill-atendida{
   background:#E7F5EF;
   color:#0B6B4D;
+}
+
+/* ---- Dashboard ---- */
+.admin-dashboard-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+  gap:16px;
+}
+.admin-stat-card{
+  background:#fff;
+  border:1px solid var(--grey-light);
+  border-radius:16px;
+  padding:20px 22px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  box-shadow:0 2px 10px rgba(20,30,25,0.04);
+}
+.admin-stat-wide{
+  grid-column:span 2;
+}
+.admin-stat-label{
+  font-size:12px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.03em;
+  color:var(--grey);
+}
+.admin-stat-value{
+  font-family:'Anton', sans-serif;
+  font-weight:400;
+  font-size:34px;
+  color:var(--green-deep);
+}
+.admin-stat-total{
+  font-family:'Work Sans', sans-serif;
+  font-size:16px;
+  font-weight:600;
+  color:var(--grey);
+}
+@media (max-width:640px){
+  .admin-stat-wide{
+    grid-column:span 1;
+  }
 }
