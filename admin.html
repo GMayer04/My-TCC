@@ -54,6 +54,9 @@
       <button type="button" class="admin-tab" data-tab="socios">
         <span class="admin-nav-icon">👤</span> Sócios cadastrados
       </button>
+      <button type="button" class="admin-tab" data-tab="solicitacoes">
+        <span class="admin-nav-icon">📩</span> Solicitações
+      </button>
       <button type="button" class="admin-tab" data-tab="config">
         <span class="admin-nav-icon">📅</span> Dias de atendimento
       </button>
@@ -119,6 +122,18 @@
       </div>
     </section>
 
+    <!-- ABA SOLICITAÇÕES DE ASSOCIAÇÃO -->
+    <section class="admin-tab-panel" id="tab-solicitacoes" style="display:none;">
+      <div class="admin-section-head">
+        <div>
+          <h2>Solicitações de associação</h2>
+          <p class="admin-muted">Pedidos enviados pelo botão "Quero ser sócio" do site. Atualiza sozinho, em tempo real.</p>
+        </div>
+      </div>
+      <p id="solicitacoesVazio" class="admin-muted admin-empty-state">Nenhuma solicitação recebida ainda.</p>
+      <div id="solicitacoesList" class="admin-events-list"></div>
+    </section>
+
     <!-- ABA CONFIG DE DIAS -->
     <section class="admin-tab-panel" id="tab-config" style="display:none;">
       <div class="admin-section-head">
@@ -159,7 +174,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, setDoc, getDoc, doc, deleteDoc, updateDoc, deleteField,
+    getFirestore, collection, addDoc, setDoc, getDoc, doc, deleteDoc, updateDoc, deleteField, Timestamp,
     onSnapshot, query, where, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import {
@@ -205,6 +220,7 @@
   window.fbWhere = where;
   window.fbGetDocs = getDocs;
   window.fbServerTimestamp = serverTimestamp;
+  window.fbTimestamp = Timestamp;
 
   window.auth = getAuth(app);
   window.fbSignIn = signInWithEmailAndPassword;

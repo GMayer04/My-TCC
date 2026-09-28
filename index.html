@@ -175,7 +175,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
   import {
-    getFirestore, collection, setDoc, getDoc, doc, onSnapshot, serverTimestamp, runTransaction
+    getFirestore, collection, addDoc, setDoc, getDoc, doc, onSnapshot, serverTimestamp, runTransaction, Timestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -209,12 +209,14 @@
 
   window.db = getFirestore(app);
   window.fbCollection = collection;
+  window.fbAddDoc = addDoc;
   window.fbSetDoc = setDoc;
   window.fbGetDoc = getDoc;
   window.fbDoc = doc;
   window.fbOnSnapshot = onSnapshot;
   window.fbServerTimestamp = serverTimestamp;
   window.fbRunTransaction = runTransaction;
+  window.fbTimestamp = Timestamp;
 
   window.auth = getAuth(app);
   window.fbCreateUser = createUserWithEmailAndPassword;

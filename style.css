@@ -530,10 +530,9 @@
     color:var(--grey-dark);
     margin:14px 0 6px;
   }
-  #bookingForm input[type="text"],
-  #bookingForm input[type="tel"],
-  #eventJoinForm input[type="text"],
-  #eventJoinForm input[type="tel"]{
+  .modal-box input[type="text"],
+  .modal-box input[type="tel"],
+  .modal-box input[type="email"]{
     width:100%;
     padding:11px 13px;
     border-radius:10px;
@@ -542,10 +541,9 @@
     font-family:inherit;
     color:var(--ink);
   }
-  #bookingForm input[type="text"]:focus,
-  #bookingForm input[type="tel"]:focus,
-  #eventJoinForm input[type="text"]:focus,
-  #eventJoinForm input[type="tel"]:focus{
+  .modal-box input[type="text"]:focus,
+  .modal-box input[type="tel"]:focus,
+  .modal-box input[type="email"]:focus{
     outline:none;
     border-color:var(--green-bright);
   }
@@ -577,8 +575,7 @@
     margin-top:10px;
     min-height:14px;
   }
-  #bookingForm .book-btn,
-  #eventJoinForm .book-btn{margin-top:16px;}
+  .modal-box form .book-btn{margin-top:16px;}
 
   /* ===== POPUP DE SUCESSO ===== */
   .success-toast{
@@ -680,6 +677,10 @@
   }
   .socio-modal-btn{
     display:block;
+    width:100%;
+    border:none;
+    font:inherit;
+    cursor:pointer;
     text-align:center;
     background:#fff;
     color:var(--green-deep);

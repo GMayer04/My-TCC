@@ -124,6 +124,7 @@ function mostrarPainel(email){
   });
   escutarEventos();
   carregarConfigDias();
+  escutarSolicitacoes();
 }
 
 document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
@@ -183,10 +184,29 @@ function comprimirImagem(arquivo, callback){
 // =====================================================================
 // ABA EVENTOS — CRUD completo (foto, título, data/hora, descrição, link)
 // =====================================================================
+// ---- Troca a posição (campo "ordem") de dois eventos entre si ----
+// idxA/idxB são usados como valor de reserva quando o evento ainda não tem "ordem" definida
+// (ex: eventos criados antes dessa funcionalidade existir), evitando empate entre eles.
+async function trocarOrdem(eventoA, idxA, eventoB, idxB){
+  const ordemA = eventoA.ordem ?? idxA;
+  const ordemB = eventoB.ordem ?? idxB;
+  try{
+    await Promise.all([
+      window.fbUpdateDoc(window.fbDoc(window.db, 'eventos', eventoA.id), { ordem: ordemB }),
+      window.fbUpdateDoc(window.fbDoc(window.db, 'eventos', eventoB.id), { ordem: ordemA })
+    ]);
+  }catch(e){
+    console.error('Erro ao reordenar eventos:', e);
+    alert('Não foi possível reordenar. Veja o console para detalhes.');
+  }
+}
+
+let eventosAtuais = [];
 function escutarEventos(){
   window.fbOnSnapshot(window.fbCollection(window.db, 'eventos'), (snapshot) => {
     const eventos = [];
     snapshot.forEach(d => eventos.push(Object.assign({ id: d.id }, d.data())));
+    eventosAtuais = eventos;
     renderEventosAdmin(eventos);
   });
 }
@@ -197,8 +217,15 @@ function renderEventosAdmin(eventos){
     container.innerHTML = `<p class="admin-muted">Nenhum evento cadastrado ainda. Clique em "+ Novo evento" para criar o primeiro.</p>`;
     return;
   }
-  container.innerHTML = eventos.map(ev => `
+  // ordena pelo campo "ordem"; eventos antigos sem esse campo (undefined) vão pro final, na ordem em que existirem
+  eventos = eventos.slice().sort((a, b) => (a.ordem ?? 999999) - (b.ordem ?? 999999));
+
+  container.innerHTML = eventos.map((ev, idx) => `
     <div class="admin-event-row" data-id="${escapeAttr(ev.id)}">
+      <div class="admin-event-order">
+        <button type="button" class="admin-btn-mover admin-btn-subir" ${idx === 0 ? 'disabled' : ''} title="Mover pra cima">▲</button>
+        <button type="button" class="admin-btn-mover admin-btn-descer" ${idx === eventos.length - 1 ? 'disabled' : ''} title="Mover pra baixo">▼</button>
+      </div>
       <div class="admin-event-thumb-wrap">
         <img src="${escapeAttr(ev.imgData || ev.img || '')}" alt="" class="admin-event-thumb admin-event-preview" onerror="this.style.opacity=0.2">
       </div>
@@ -226,6 +253,20 @@ function renderEventosAdmin(eventos){
       </div>
     </div>
   `).join('');
+
+  // ---- Botões de reordenar: troca o campo "ordem" com o evento vizinho ----
+  container.querySelectorAll('.admin-event-row').forEach((row, idx) => {
+    const subir = row.querySelector('.admin-btn-subir');
+    const descer = row.querySelector('.admin-btn-descer');
+    subir.addEventListener('click', async () => {
+      if(idx === 0) return;
+      await trocarOrdem(eventos[idx], idx, eventos[idx - 1], idx - 1);
+    });
+    descer.addEventListener('click', async () => {
+      if(idx === eventos.length - 1) return;
+      await trocarOrdem(eventos[idx], idx, eventos[idx + 1], idx + 1);
+    });
+  });
 
   // ---- Preview + compressão da imagem escolhida do computador (guardada em base64 no Firestore) ----
   container.querySelectorAll('.admin-event-row').forEach(row => {
@@ -279,12 +320,14 @@ function renderEventosAdmin(eventos){
 
 document.getElementById('btnNovoEvento').addEventListener('click', async () => {
   try{
+    const maiorOrdem = eventosAtuais.reduce((max, ev) => Math.max(max, ev.ordem ?? 0), -1);
     await window.fbAddDoc(window.fbCollection(window.db, 'eventos'), {
       title: 'Novo evento',
       img: '',
       time: '',
       description: '',
       link: '',
+      ordem: maiorOrdem + 1,
       criadoEm: window.fbServerTimestamp()
     });
   }catch(e){
@@ -549,6 +592,7 @@ async function sincronizarVagaEBloqueio(original, novo){
       data: novo.data,
       horario: novo.horario,
       uid: original.uid || null,
+      timestampAgendamento: window.fbTimestamp.fromDate(new Date(`${novo.data}T${novo.horario}:00`)),
       criadoEm: window.fbServerTimestamp()
     });
     if(original.uid){
@@ -772,3 +816,77 @@ document.getElementById('btnLimparAntigos').addEventListener('click', async () =
   btn.disabled = false;
   btn.textContent = 'Apagar registros antigos';
 });
+
+// =====================================================================
+// ABA SOLICITAÇÕES — pedidos de associação vindos do botão "Quero ser sócio"
+// =====================================================================
+function escutarSolicitacoes(){
+  window.fbOnSnapshot(window.fbCollection(window.db, 'solicitacoes-socio'), (snapshot) => {
+    const solicitacoes = [];
+    snapshot.forEach(d => solicitacoes.push(Object.assign({ id: d.id }, d.data())));
+    // pendentes primeiro, depois mais recentes primeiro
+    solicitacoes.sort((a, b) => {
+      if((a.status === 'pendente') !== (b.status === 'pendente')) return a.status === 'pendente' ? -1 : 1;
+      return (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0);
+    });
+    renderSolicitacoes(solicitacoes);
+  });
+}
+
+function renderSolicitacoes(solicitacoes){
+  const container = document.getElementById('solicitacoesList');
+  const vazio = document.getElementById('solicitacoesVazio');
+  if(!solicitacoes.length){
+    container.innerHTML = '';
+    vazio.style.display = '';
+    return;
+  }
+  vazio.style.display = 'none';
+
+  container.innerHTML = solicitacoes.map(s => {
+    const atendida = s.status === 'atendida';
+    const dataFormatada = s.criadoEm?.seconds
+      ? new Date(s.criadoEm.seconds * 1000).toLocaleString('pt-BR')
+      : '';
+    return `
+      <div class="admin-event-row" data-id="${escapeAttr(s.id)}" style="opacity:${atendida ? 0.6 : 1}">
+        <div class="admin-event-fields" style="grid-column:1 / span 2;">
+          <p style="margin:0 0 6px;"><strong>${escapeHtml(s.nome)}</strong> ${atendida ? '<span class="admin-pill-atendida">Atendida</span>' : '<span class="admin-pill-pendente">Pendente</span>'}</p>
+          <p class="admin-muted" style="margin:0 0 4px;">${escapeHtml(s.contato)}${s.setor ? ' · ' + escapeHtml(s.setor) : ''}</p>
+          <p class="admin-muted" style="margin:0; font-size:11.5px;">${escapeHtml(dataFormatada)}</p>
+        </div>
+        <div class="admin-event-actions">
+          <button type="button" class="admin-btn-salvar admin-btn-alternar-status">${atendida ? 'Marcar pendente' : 'Marcar atendida'}</button>
+          <button type="button" class="admin-btn-excluir">Excluir</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  container.querySelectorAll('.admin-event-row').forEach(row => {
+    const id = row.dataset.id;
+    const solicitacao = solicitacoes.find(s => s.id === id);
+
+    row.querySelector('.admin-btn-alternar-status').addEventListener('click', async () => {
+      try{
+        await window.fbUpdateDoc(window.fbDoc(window.db, 'solicitacoes-socio', id), {
+          status: solicitacao.status === 'atendida' ? 'pendente' : 'atendida'
+        });
+      }catch(e){
+        console.error('Erro ao atualizar status da solicitação:', e);
+        alert('Não foi possível atualizar. Veja o console para detalhes.');
+      }
+    });
+
+    row.querySelector('.admin-btn-excluir').addEventListener('click', async () => {
+      if(!confirm('Excluir essa solicitação? Essa ação não pode ser desfeita.')) return;
+      try{
+        await window.fbDeleteDoc(window.fbDoc(window.db, 'solicitacoes-socio', id));
+      }catch(e){
+        console.error('Erro ao excluir solicitação:', e);
+        alert('Não foi possível excluir. Veja o console para detalhes.');
+      }
+    });
+  });
+}
+
+// (chamada real acontece dentro de mostrarPainel, só depois do login confirmado)

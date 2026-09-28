@@ -147,7 +147,7 @@ function escapeAttr(valor){
         <p class="socio-modal-text">A integração também é incentivada por meio de eventos esportivos, campeonatos internos e atividades de confraternização, criando oportunidades para que os associados compartilhem experiências, fortaleçam vínculos e promovam um ambiente cada vez mais colaborativo.</p>
         <p class="socio-modal-text">Mais do que oferecer benefícios, o Grêmio Recreativo busca aproximar pessoas, incentivar a convivência e proporcionar momentos especiais, contribuindo para uma experiência mais positiva e integrada dentro e fora do ambiente de trabalho.</p>
         <p class="socio-modal-text">Faça parte do Grêmio Recreativo e aproveite tudo o que preparamos para você.</p>
-        <a href="mailto:gremio@miracema-nuodex.com.br" class="socio-modal-btn">Faça parte aqui</a>
+        <button type="button" class="socio-modal-btn" id="abrirFormularioSocioBtn">Quero me associar</button>
       </div>`;
     document.body.appendChild(overlay);
 
@@ -155,6 +155,99 @@ function escapeAttr(valor){
       if(e.target === overlay) closeSocioModal();
     });
     document.getElementById('socioModalClose').addEventListener('click', closeSocioModal);
+    document.getElementById('abrirFormularioSocioBtn').addEventListener('click', () => {
+      closeSocioModal();
+      openSolicitacaoModal();
+    });
+  }
+
+  // ---- Modal com o formulário de solicitação de associação (salvo no Firestore pro admin revisar) ----
+  function ensureSolicitacaoModal(){
+    if(document.getElementById('solicitacaoModalOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'solicitacaoModalOverlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="solicitacaoModalTitle">
+        <button type="button" class="modal-close" id="solicitacaoModalClose" aria-label="Fechar">&times;</button>
+        <h3 id="solicitacaoModalTitle">Quero me associar</h3>
+        <p class="modal-subtitle">Preencha seus dados e a recepção do Grêmio entra em contato com você.</p>
+        <form id="solicitacaoForm" novalidate>
+          <label class="field-label" for="solicitacaoNome">Nome completo</label>
+          <input type="text" id="solicitacaoNome" required autocomplete="name" placeholder="Seu nome">
+
+          <label class="field-label" for="solicitacaoContato">Telefone / WhatsApp</label>
+          <input type="tel" id="solicitacaoContato" required autocomplete="tel" placeholder="(19) 99999-9999">
+
+          <label class="field-label" for="solicitacaoSetor">Setor / área (opcional)</label>
+          <input type="text" id="solicitacaoSetor" placeholder="Ex: Manutenção, Financeiro...">
+
+          <p class="form-error" id="solicitacaoFormError"></p>
+          <button type="submit" class="book-btn" id="solicitacaoSubmitBtn">Enviar solicitação</button>
+        </form>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if(e.target === overlay) closeSolicitacaoModal();
+    });
+    document.getElementById('solicitacaoModalClose').addEventListener('click', closeSolicitacaoModal);
+    document.getElementById('solicitacaoContato').addEventListener('input', (e) => {
+      let numeros = e.target.value.replace(/\D/g, '').slice(0, 11);
+      let formatado = numeros;
+      if(numeros.length > 0) formatado = '(' + numeros.slice(0, 2);
+      if(numeros.length >= 3) formatado += ') ' + numeros.slice(2, 7);
+      if(numeros.length >= 8) formatado += '-' + numeros.slice(7, 11);
+      e.target.value = formatado;
+    });
+
+    document.getElementById('solicitacaoForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nome = document.getElementById('solicitacaoNome').value.trim();
+      const contato = document.getElementById('solicitacaoContato').value.trim();
+      const setor = document.getElementById('solicitacaoSetor').value.trim();
+      const errorEl = document.getElementById('solicitacaoFormError');
+      const btn = document.getElementById('solicitacaoSubmitBtn');
+      errorEl.textContent = '';
+
+      if(!nome || !contato){
+        errorEl.textContent = 'Preencha nome e telefone/WhatsApp para continuar.';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
+      try{
+        await window.fbAddDoc(window.fbCollection(window.db, 'solicitacoes-socio'), {
+          nome, contato, setor,
+          status: 'pendente',
+          criadoEm: window.fbServerTimestamp()
+        });
+        closeSolicitacaoModal();
+        showSuccessToast('Solicitação enviada! A recepção do Grêmio vai entrar em contato.');
+      }catch(err){
+        console.error('Erro ao enviar solicitação de associação:', err);
+        errorEl.textContent = 'Não foi possível enviar. Tente novamente.';
+      }
+      btn.disabled = false;
+      btn.textContent = 'Enviar solicitação';
+    });
+  }
+
+  function openSolicitacaoModal(){
+    ensureSolicitacaoModal();
+    const overlay = document.getElementById('solicitacaoModalOverlay');
+    document.getElementById('solicitacaoForm').reset();
+    document.getElementById('solicitacaoFormError').textContent = '';
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSolicitacaoModal(){
+    const overlay = document.getElementById('solicitacaoModalOverlay');
+    if(overlay){
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
   }
 
   function openSocioModal(){
@@ -280,6 +373,10 @@ function escapeAttr(valor){
   async function saveBooking(containerId, dateStr, time, dados){
     const criadoEm = window.fbServerTimestamp();
     const uid = window.socioAtual ? window.socioAtual.uid : null;
+    // momento exato do horário escolhido (não é "agora": é a data+hora da própria vaga).
+    // As regras do Firestore comparam isso com request.time (relógio do servidor) pra travar
+    // agendamento retroativo de verdade, sem depender do relógio do computador de quem agenda.
+    const timestampAgendamento = window.fbTimestamp.fromDate(new Date(`${dateStr}T${time}:00`));
     // ID determinístico: duas pessoas tentando o mesmo horário caem no MESMO documento,
     // então a transação abaixo consegue detectar o conflito de verdade (não só no cache local)
     const vagaId = `${containerId}__${dateStr}__${time.replace(':', '')}`;
@@ -296,6 +393,7 @@ function escapeAttr(valor){
         data: dateStr,
         horario: time,
         uid,
+        timestampAgendamento,
         criadoEm
       });
       transaction.set(agendamentoRef, {
@@ -307,6 +405,7 @@ function escapeAttr(valor){
         cracha: dados.cracha,
         aceitouTermo: true,
         uid,
+        timestampAgendamento,
         criadoEm
       });
     });
@@ -463,6 +562,8 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
       snapshot.forEach(doc => {
         eventCards.push(Object.assign({ id: doc.id }, doc.data()));
       });
+      // respeita a ordem definida pelo admin; eventos antigos sem esse campo vão pro final
+      eventCards.sort((a, b) => (a.ordem ?? 999999) - (b.ordem ?? 999999));
       renderEventCards();
       renderTicker();
     });
@@ -572,7 +673,13 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
 
     function getSlotsFromTemplate(template, dateStr){
       const savedDay = (loadBookings()[containerId] || {})[dateStr] || {};
-      return (template || []).map(time => ({ time, taken: !!savedDay[time] }));
+      const agora = new Date();
+      const ehHoje = dateStr === formatDateStr(agora);
+      const horaAgora = String(agora.getHours()).padStart(2,'0') + ':' + String(agora.getMinutes()).padStart(2,'0');
+      return (template || []).map(time => {
+        const jaPassou = ehHoje && time <= horaAgora; // só efeito visual; quem trava de verdade são as regras do Firestore
+        return { time, taken: !!savedDay[time] || jaPassou };
+      });
     }
     function getSlotsForDate(dateStr){
       return getSlotsFromTemplate(config.slotsTemplate, dateStr);
