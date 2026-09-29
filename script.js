@@ -605,7 +605,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
         <button type="button" class="modal-close" id="eventLinkModalClose" aria-label="Fechar">&times;</button>
         <h3 id="eventLinkModalTitle"></h3>
         <p class="modal-subtitle" id="eventLinkModalSubtitle"></p>
-        <p id="eventLinkModalDescription" style="font-size:14px; color:var(--grey-dark); line-height:1.5; margin-bottom:18px;"></p>
+        <p id="eventLinkModalDescription" style="font-size:14px; color:var(--grey-dark); line-height:1.5; margin-bottom:18px; white-space:pre-line;"></p>
         <a href="#" target="_blank" rel="noopener" class="book-btn" id="eventLinkModalBtn" style="display:block; text-align:center; text-decoration:none;">Acesse o link aqui</a>
       </div>`;
     document.body.appendChild(overlay);
