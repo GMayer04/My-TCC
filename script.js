@@ -625,6 +625,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     const linkBtn = document.getElementById('eventLinkModalBtn');
     if(ev.link){
       linkBtn.href = ev.link;
+      linkBtn.textContent = 'Acesse o link aqui';
       linkBtn.style.opacity = '1';
       linkBtn.style.pointerEvents = 'auto';
     } else {
