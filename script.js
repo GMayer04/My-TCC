@@ -26,8 +26,8 @@ function escapeAttr(valor){
     return `${cracha}@socios.gremio-miracema.local`;
   }
   function montarSenhaFirebase(pin){
-    // Firebase exige senha com pelo menos 6 caracteres; dobramos o PIN de 4 dígitos por baixo dos panos
-    return pin + pin;
+    // Firebase exige senha com pelo menos 6 caracteres; o PIN de 6 dígitos já atende isso sozinho
+    return pin;
   }
 
   async function tentarLoginOuCadastro(cracha, pin, nome){
@@ -48,7 +48,7 @@ function escapeAttr(valor){
         // conta criada com sucesso = era primeiro acesso mesmo — o onAuthStateChanged cuida do resto
       }catch(errCadastro){
         if(errCadastro.code === 'auth/email-already-in-use'){
-          throw new Error('PIN incorreto. Confira os 4 dígitos ou fale com a recepção.');
+          throw new Error('PIN incorreto. Confira os 6 dígitos ou fale com a recepção.');
         }
         console.error('Erro no login/cadastro de sócio:', errCadastro);
         throw new Error('Não foi possível entrar. Confira o crachá e o PIN e tente de novo.');
@@ -105,7 +105,7 @@ function escapeAttr(valor){
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
   });
   document.getElementById('loginPin').addEventListener('input', (e) => {
-    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
   });
   document.getElementById('socioLoginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -116,8 +116,8 @@ function escapeAttr(valor){
     const btn = document.getElementById('loginSubmitBtn');
     errorEl.textContent = '';
 
-    if(cracha.length !== 4 || pin.length !== 4){
-      errorEl.textContent = 'Preencha o crachá e o PIN com 4 dígitos.';
+    if(cracha.length !== 4 || pin.length !== 6){
+      errorEl.textContent = 'Preencha o crachá com 4 dígitos e o PIN com 6 dígitos.';
       return;
     }
     btn.disabled = true;
