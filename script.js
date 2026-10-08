@@ -30,13 +30,66 @@ function escapeAttr(valor){
     return pin;
   }
 
+  // ---- Limite de tentativas de PIN (por crachá, guardado no navegador) ----
+  // ATENÇÃO: isso é um freio de uso, não uma barreira de segurança de verdade. Vive no localStorage,
+  // então quem limpar os dados do site ou chamar a API do Firebase direto escapa dele. A proteção
+  // real contra força bruta vem do bloqueio do próprio Firebase (auth/too-many-requests) e do App Check.
+  const TENTATIVAS_KEY = 'miracema-tentativas-pin';
+  const MAX_TENTATIVAS_PIN = 5;
+  const MINUTOS_BLOQUEIO = [5, 15, 60]; // cada novo bloqueio dura mais que o anterior
+
+  function lerTentativas(){
+    try{ return JSON.parse(localStorage.getItem(TENTATIVAS_KEY)) || {}; }
+    catch(e){ return {}; }
+  }
+  function salvarTentativas(obj){
+    try{ localStorage.setItem(TENTATIVAS_KEY, JSON.stringify(obj)); }
+    catch(e){ /* sem localStorage disponível: segue sem o limite local */ }
+  }
+  function minutosRestantesDeBloqueio(cracha){
+    const reg = lerTentativas()[cracha];
+    if(!reg || !reg.bloqueadoAte) return 0;
+    const restanteMs = reg.bloqueadoAte - Date.now();
+    return restanteMs > 0 ? Math.ceil(restanteMs / 60000) : 0;
+  }
+  function registrarFalhaPin(cracha){
+    const todas = lerTentativas();
+    const reg = todas[cracha] || { falhas: 0, bloqueios: 0, bloqueadoAte: 0 };
+    reg.falhas += 1;
+    if(reg.falhas >= MAX_TENTATIVAS_PIN){
+      const minutos = MINUTOS_BLOQUEIO[Math.min(reg.bloqueios, MINUTOS_BLOQUEIO.length - 1)];
+      reg.bloqueadoAte = Date.now() + minutos * 60000;
+      reg.bloqueios += 1;
+      reg.falhas = 0;
+    }
+    todas[cracha] = reg;
+    salvarTentativas(todas);
+    return reg;
+  }
+  function limparFalhasPin(cracha){
+    const todas = lerTentativas();
+    delete todas[cracha];
+    salvarTentativas(todas);
+  }
+
   async function tentarLoginOuCadastro(cracha, pin, nome){
     const email = montarEmailSintetico(cracha);
     const senha = montarSenhaFirebase(pin);
+    const MSG_MUITAS_REQUISICOES = 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
+
+    const minutosBloqueado = minutosRestantesDeBloqueio(cracha);
+    if(minutosBloqueado > 0){
+      throw new Error(`Muitas tentativas incorretas para este crachá. Tente de novo em ${minutosBloqueado} min.`);
+    }
+
     try{
       await window.fbSignIn(window.auth, email, senha);
+      limparFalhasPin(cracha);
       // login OK — o onAuthStateChanged cuida do resto
     }catch(errLogin){
+      // o próprio Firebase já bloqueou este aparelho/IP por excesso de tentativas
+      if(errLogin.code === 'auth/too-many-requests') throw new Error(MSG_MUITAS_REQUISICOES);
+
       // pode ser primeiro acesso (conta não existe) OU PIN errado — tenta criar a conta pra descobrir qual é
       try{
         const cred = await window.fbCreateUser(window.auth, email, senha);
@@ -45,10 +98,19 @@ function escapeAttr(valor){
           nome: nome || '',
           criadoEm: window.fbServerTimestamp()
         });
+        limparFalhasPin(cracha);
         // conta criada com sucesso = era primeiro acesso mesmo — o onAuthStateChanged cuida do resto
       }catch(errCadastro){
+        if(errCadastro.code === 'auth/too-many-requests') throw new Error(MSG_MUITAS_REQUISICOES);
         if(errCadastro.code === 'auth/email-already-in-use'){
-          throw new Error('PIN incorreto. Confira os 6 dígitos ou fale com a recepção.');
+          // a conta existe e o PIN não bateu: só aqui conta como tentativa errada
+          const reg = registrarFalhaPin(cracha);
+          const minutos = minutosRestantesDeBloqueio(cracha);
+          if(minutos > 0){
+            throw new Error(`PIN incorreto. Crachá bloqueado por ${minutos} min por excesso de tentativas.`);
+          }
+          const restantes = MAX_TENTATIVAS_PIN - reg.falhas;
+          throw new Error(`PIN incorreto. Você tem mais ${restantes} tentativa${restantes === 1 ? '' : 's'} antes do bloqueio temporário.`);
         }
         console.error('Erro no login/cadastro de sócio:', errCadastro);
         throw new Error('Não foi possível entrar. Confira o crachá e o PIN e tente de novo.');
