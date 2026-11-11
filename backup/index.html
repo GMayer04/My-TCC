@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grêmio Social Recreativo Miracema</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner wrap" style="padding-left:0; padding-right:0;">
+    <div class="brand">
+      <img src="images/GRMN.png" alt="Grêmio Miracema">
+      <div class="brand-text">
+        <strong>Grêmio Miracema</strong>
+        <span>Desde 1984</span>
+      </div>
+    </div>
+    <nav id="mainNav">
+      <a href="#inicio">Início</a>
+      <a href="#eventos">Eventos</a>
+      <a href="#servicos">Serviços</a>
+      <a href="#contato">Contato</a>
+    </nav>
+    <button class="nav-toggle" id="navToggle" aria-label="Abrir menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<section class="hero" id="inicio">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <p class="eyebrow">Grêmio Social Recreativo</p>
+      <h1>Bem-estar e <em>convivência</em> para todo sócio</h1>
+      <p>Agende manicure e massagem sem sair do grêmio. Horários da semana, sempre atualizados, e as novidades do clube direto na sua tela.</p>
+      <div class="hero-actions">
+        <a href="#servicos" class="btn btn-primary">Ver agenda de serviços</a>
+        <a href="#eventos" class="btn btn-outline">Próximos eventos</a>
+      </div>
+      <div class="hero-stats">
+        <div><strong>40+</strong><span>Anos de história</span></div>
+        <div><strong>2</strong><span>Serviços de bem-estar</span></div>
+        <div><strong>5</strong><span>Dias de atendimento</span></div>
+      </div>
+    </div>
+    <div class="hero-badge-wrap">
+      <div class="hero-badge-ring"></div>
+      <img src="images/GRMN.png" alt="Grêmio Miracema">
+    </div>
+  </div>
+</section>
+
+<section class="ticker-section" id="eventos" aria-label="Próximos eventos do grêmio">
+  <div class="ticker-label">Agenda do grêmio</div>
+  <div class="ticker-track-wrap">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+</section>
+
+<section class="section" id="proximos-eventos">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Agenda do grêmio</p>
+      <h2>Próximos eventos</h2>
+      <p>Confira os eventos abertos e garanta sua vaga.</p>
+    </div>
+    <div class="event-cards-grid" id="eventCardsGrid"></div>
+  </div>
+</section>
+
+<section class="section" id="servicos">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Agenda de serviços</p>
+      <h2>Escolha o dia e o horário</h2>
+      <p>Os calendários abaixo mostram os dias com vagas abertas. Toque em uma data disponível para ver os horários livres.</p>
+      <p class="socio-logged-info" id="socioLoggedInfo" style="display:none;"></p>
+    </div>
+
+    <div class="socio-login-gate" id="socioLoginGate">
+      <div class="socio-login-icon">🔑</div>
+      <h3>Área de sócios</h3>
+      <p>Entre com seu crachá para ver os horários e agendar.</p>
+      <form id="socioLoginForm" novalidate>
+        <label class="field-label" for="loginCracha">Número do crachá</label>
+        <input type="text" id="loginCracha" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ex: 0123" required>
+
+        <label class="field-label" for="loginPin">PIN (6 dígitos)</label>
+        <input type="password" id="loginPin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" required>
+
+        <label class="field-label" for="loginNome">Seu nome (só é usado no primeiro acesso)</label>
+        <input type="text" id="loginNome" placeholder="Nome completo">
+
+        <p class="form-error" id="loginFormError"></p>
+        <button type="submit" class="book-btn" id="loginSubmitBtn">Entrar</button>
+      </form>
+    </div>
+
+    <div class="services-grid" id="servicesGrid" style="display:none;">
+
+      <!-- MANICURE CARD -->
+      <article class="service-card">
+        <div class="service-head manicure">
+          <div>
+            <div class="service-icon">💅</div>
+            <h3>Manicure</h3>
+            <p>Esmaltação, cutilagem e cuidados das mãos e pés.</p>
+          </div>
+        </div>
+        <div class="calendar" id="cal-manicure"></div>
+      </article>
+
+      <!-- MASSAGE CARD -->
+      <article class="service-card">
+        <div class="service-head massage">
+          <div>
+            <div class="service-icon">💆</div>
+            <h3>Massagem</h3>
+            <p>Relaxante ou terapêutica, sessões de 50 minutos.</p>
+          </div>
+        </div>
+        <div class="calendar" id="cal-massage"></div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<section class="strip">
+  <div class="wrap">
+    <h3>Ainda não é sócio? Conheça os benefícios de fazer parte do Grêmio Miracema.</h3>
+    <a href="#contato" class="btn btn-outline" id="quero-ser-socio-btn">Quero ser sócio</a>
+  </div>
+</section>
+
+<footer id="contato">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand">
+          <img src="images/GRMN.png" alt="Grêmio Miracema">
+          <strong>Grêmio Social<br>Recreativo Miracema</strong>
+        </div>
+        <p>Um espaço de convivência, esporte e bem-estar para sócios e suas famílias desde 1984.</p>
+      </div>
+      <div>
+        <h4>Contato</h4>
+        <ul>
+          <li>Ricardo Bassoli Cezare, 15  — Miracema</li>
+          <li>(19)3728-1040</li>
+          <li>gremio@miracema-nuodex.com.br</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Horários</h4>
+        <ul>
+          <li>Segunda a Sexta — 9h às 18h</li>
+          <li>Manicure &amp; massagem sob agendamento</li>
+          <li>Sábado e Domingo  — fechado</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© GM 2026 Grêmio Social Recreativo Miracema. Todos os direitos reservados.</span>
+      <span>Desde 1984 🟢</span>
+    </div>
+  </div>
+</footer>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, setDoc, getDoc, doc, onSnapshot, serverTimestamp, runTransaction, Timestamp
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import {
+    initializeAppCheck, ReCaptchaV3Provider
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCZF9cFpevic1dQPXaPsrTNDuZKcqQOf8o",
+    authDomain: "gremio-miracema.firebaseapp.com",
+    projectId: "gremio-miracema",
+    storageBucket: "gremio-miracema.firebasestorage.app",
+    messagingSenderId: "1053861449624",
+    appId: "1:1053861449624:web:bceee59cecdfeefaf1a5ed"
+  };
+
+  const app = initializeApp(firebaseConfig);
+
+  // ---- App Check: protege contra bots/scripts chamando o Firestore direto, fora do site.
+  // TODO: troque "COLE_AQUI_A_CHAVE_DO_RECAPTCHA" pela chave de site do reCAPTCHA v3
+  // (veja o passo a passo que o Claude te passou). Enquanto não trocar, isso fica sem efeito.
+  const CHAVE_RECAPTCHA = "COLE_AQUI_A_CHAVE_DO_RECAPTCHA";
+  if(CHAVE_RECAPTCHA && CHAVE_RECAPTCHA !== "COLE_AQUI_A_CHAVE_DO_RECAPTCHA"){
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(CHAVE_RECAPTCHA),
+      isTokenAutoRefreshEnabled: true
+    });
+  }
+
+  window.db = getFirestore(app);
+  window.fbCollection = collection;
+  window.fbAddDoc = addDoc;
+  window.fbSetDoc = setDoc;
+  window.fbGetDoc = getDoc;
+  window.fbDoc = doc;
+  window.fbOnSnapshot = onSnapshot;
+  window.fbServerTimestamp = serverTimestamp;
+  window.fbRunTransaction = runTransaction;
+  window.fbTimestamp = Timestamp;
+
+  window.auth = getAuth(app);
+  window.fbCreateUser = createUserWithEmailAndPassword;
+  window.fbSignIn = signInWithEmailAndPassword;
+  window.fbOnAuthStateChanged = onAuthStateChanged;
+  window.fbSignOut = signOut;
+</script>
+<script src="script.js" defer></script>
+
+</body>
+</html>

@@ -212,7 +212,7 @@
     from{transform:translateX(0);}
     to{transform:translateX(-50%);}
   }
-  /* ===== SECTION HEADS ===== */
+  /* ===== CABEÇALHOS DE SEÇÃO ===== */
   .section{padding:80px 0;}
   .section-head{
     max-width:640px;
@@ -224,7 +224,7 @@
   }
   .section-head p{color:var(--grey-dark); margin-top:12px; font-size:15.5px;}
 
-  /* ===== SERVICES / CALENDARS ===== */
+  /* ===== SERVIÇOS / CALENDÁRIOS ===== */
   .services-grid{
     display:grid;
     grid-template-columns:1fr 1fr;
@@ -401,7 +401,7 @@
   .service-head.manicure ~ .calendar .book-btn{background:var(--green-deep);}
   .service-head.massage ~ .calendar .book-btn{background:var(--grey-dark);}
 
-  /* ===== ABOUT STRIP ===== */
+  /* ===== FAIXA SOBRE ===== */
   .strip{
     background:var(--green-deep);
     background-image:var(--stripe);
@@ -445,7 +445,7 @@
     color:#8b8d8f;
   }
 
-  /* ===== RESPONSIVE ===== */
+  /* ===== RESPONSIVO ===== */
   @media (max-width:920px){
     .hero-inner{grid-template-columns:1fr; padding-top:40px;}
     .hero-badge-wrap{order:-1;}
@@ -657,7 +657,7 @@
     background:var(--green-deep);
   }
 
-  /* ===== MODAL "SOBRE O GRÊMIO RECREATIVO" (verde, texto branco) ===== */
+  /* ===== MODAL SOBRE O GRÊMIO ===== */
   .socio-modal-box{
     background:var(--green-deep);
     max-width:520px;
@@ -695,7 +695,7 @@
     opacity:0.9;
   }
 
-  /* ===== CARD "JÁ AGENDADO" (trava o calendário depois de 1 agendamento) ===== */
+  /* ===== CARD JÁ AGENDADO ===== */
   .already-booked-card{
     text-align:center;
     padding:36px 20px;
@@ -740,7 +740,7 @@
     padding:6px 14px;
     border-radius:999px;
   }
-  /* ===== LOGIN DE SÓCIOS (crachá + PIN) ===== */
+  /* ===== LOGIN DE SÓCIOS ===== */
   .socio-login-gate{
     max-width:420px;
     margin:0 auto;

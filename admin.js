@@ -1,23 +1,21 @@
-// =====================================================================
-// PAINEL ADMIN — login, CRUD de eventos, relatório de agendamentos, config de dias
-// =====================================================================
+// ============================================================
+// PAINEL ADMIN
+// ============================================================
 
 const DIAS_SEMANA = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
 
-// ---- Proteção contra XSS: qualquer texto vindo de sócios (nome, contato, crachá, etc)
-// precisa passar por aqui antes de ir pro innerHTML, senão alguém pode se cadastrar
-// com um nome tipo "<img src=x onerror=...>" e rodar código dentro da sessão do admin.
+// Escapa texto antes de ir ao HTML (previne XSS)
 function escapeHtml(valor){
   const div = document.createElement('div');
   div.textContent = valor === undefined || valor === null ? '' : String(valor);
   return div.innerHTML;
 }
-// ---- Mesma ideia, mas pra usar dentro de atributos value="..." (mantém aspas seguras) ----
+// Versão para atributos HTML
 function escapeAttr(valor){
   return escapeHtml(valor).replace(/"/g, '&quot;');
 }
 
-// ---- Utilidades de data (mesmas regras do site público) ----
+// Utilidades de data
 function todayDateOnly(){
   const d = new Date();
   d.setHours(0,0,0,0);
@@ -45,9 +43,7 @@ function computeWeekStartStr(dateStr){
 function nomeServico(s){
   return s === 'cal-manicure' ? 'Manicure' : (s === 'cal-massage' ? 'Massagem' : (s || 'Serviço'));
 }
-// ---- Converte o ID técnico do serviço ("cal-manicure"/"cal-massage") pra chave usada na trava
-// semanal ("manicure"/"massagem" — igual ao configKey do script.js). NÃO é um simples "tira o cal-":
-// "cal-massage" não vira "massagem" só cortando prefixo, por isso existe esse mapeamento explícito.
+// cal-manicure → manicure · cal-massage → massagem
 function containerIdParaConfigKey(servico){
   if(servico === 'cal-manicure') return 'manicure';
   if(servico === 'cal-massage') return 'massagem';
@@ -60,7 +56,7 @@ function nomeDiaSemana(dateStr){
   const dias = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
   return dias[new Date(dateStr + 'T00:00:00').getDay()];
 }
-// ---- Agrupa uma lista de agendamentos em { servico: { data: [agendamentos ordenados por horário] } } ----
+// Agrupa por serviço > data > horário
 function agruparPorDataEServico(agendamentos){
   const grupos = {};
   agendamentos.forEach(ag => {
@@ -76,9 +72,9 @@ function agruparPorDataEServico(agendamentos){
   return grupos;
 }
 
-// =====================================================================
+// ============================================================
 // LOGIN DO ADMIN
-// =====================================================================
+// ============================================================
 function iniciarAuthListener(){
   if(!window.auth){
     setTimeout(iniciarAuthListener, 200);
@@ -146,7 +142,7 @@ document.getElementById('adminLoginForm').addEventListener('submit', async (e) =
   btn.textContent = 'Entrar';
 });
 
-// ---- Navegação entre abas ----
+// Navegação entre abas
 document.querySelectorAll('.admin-tab').forEach(tabBtn => {
   tabBtn.addEventListener('click', () => {
     document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
@@ -156,7 +152,7 @@ document.querySelectorAll('.admin-tab').forEach(tabBtn => {
   });
 });
 
-// ---- Comprime/redimensiona a imagem escolhida (limite do Firestore é 1MB por documento) ----
+// Comprime imagem (limite de 1 MB por documento)
 function comprimirImagem(arquivo, callback){
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -182,12 +178,9 @@ function comprimirImagem(arquivo, callback){
   reader.readAsDataURL(arquivo);
 }
 
-// =====================================================================
-// ABA EVENTOS — CRUD completo (foto, título, data/hora, descrição, link)
-// =====================================================================
-// ---- Troca a posição (campo "ordem") de dois eventos entre si ----
-// idxA/idxB são usados como valor de reserva quando o evento ainda não tem "ordem" definida
-// (ex: eventos criados antes dessa funcionalidade existir), evitando empate entre eles.
+// ============================================================
+// EVENTOS
+// ============================================================
 async function trocarOrdem(eventoA, idxA, eventoB, idxB){
   const ordemA = eventoA.ordem ?? idxA;
   const ordemB = eventoB.ordem ?? idxB;
@@ -218,7 +211,6 @@ function renderEventosAdmin(eventos){
     container.innerHTML = `<p class="admin-muted">Nenhum evento cadastrado ainda. Clique em "+ Novo evento" para criar o primeiro.</p>`;
     return;
   }
-  // ordena pelo campo "ordem"; eventos antigos sem esse campo (undefined) vão pro final, na ordem em que existirem
   eventos = eventos.slice().sort((a, b) => (a.ordem ?? 999999) - (b.ordem ?? 999999));
 
   container.innerHTML = eventos.map((ev, idx) => `
@@ -255,7 +247,6 @@ function renderEventosAdmin(eventos){
     </div>
   `).join('');
 
-  // ---- Botões de reordenar: troca o campo "ordem" com o evento vizinho ----
   container.querySelectorAll('.admin-event-row').forEach((row, idx) => {
     const subir = row.querySelector('.admin-btn-subir');
     const descer = row.querySelector('.admin-btn-descer');
@@ -269,9 +260,8 @@ function renderEventosAdmin(eventos){
     });
   });
 
-  // ---- Preview + compressão da imagem escolhida do computador (guardada em base64 no Firestore) ----
   container.querySelectorAll('.admin-event-row').forEach(row => {
-    row._imgDataPendente = null; // guarda a imagem convertida até a pessoa clicar em Salvar
+    row._imgDataPendente = null;
     const fileInput = row.querySelector('.ev-imagem-arquivo');
     const preview = row.querySelector('.admin-event-preview');
     fileInput.addEventListener('change', () => {
@@ -297,7 +287,7 @@ function renderEventosAdmin(eventos){
         link: row.querySelector('.ev-link').value.trim()
       };
       if(row._imgDataPendente){
-        dados.imgData = row._imgDataPendente; // imagem enviada do computador, prioridade sobre o link
+        dados.imgData = row._imgDataPendente;
       }
       try{
         await window.fbUpdateDoc(window.fbDoc(window.db, 'eventos', id), dados);
@@ -337,9 +327,9 @@ document.getElementById('btnNovoEvento').addEventListener('click', async () => {
   }
 });
 
-// =====================================================================
-// ABA AGENDAMENTOS — relatório da semana, com edição e exclusão
-// =====================================================================
+// ============================================================
+// AGENDAMENTOS
+// ============================================================
 let agendamentosCarregados = [];
 
 document.getElementById('btnCarregarAgendamentos').addEventListener('click', async () => {
@@ -498,7 +488,7 @@ function renderAgendamentosTable(agendamentos){
 
   container.querySelectorAll('tbody tr').forEach(row => {
     const id = row.dataset.id;
-    const original = agendamentos.find(a => a.id === id); // valores antes de qualquer edição
+    const original = agendamentos.find(a => a.id === id);
 
     row.querySelector('.admin-btn-salvar-linha').addEventListener('click', async () => {
       const dados = {
@@ -511,7 +501,6 @@ function renderAgendamentosTable(agendamentos){
       };
       try{
         await window.fbUpdateDoc(window.fbDoc(window.db, 'agendamentos', id), dados);
-        // se mudou serviço/data/horário, libera a vaga antiga e trava a nova
         const mudouHorario = original.servico !== dados.servico || original.data !== dados.data || original.horario !== dados.horario;
         if(mudouHorario){
           await sincronizarVagaEBloqueio(original, dados);
@@ -543,10 +532,9 @@ function renderAgendamentosTable(agendamentos){
   });
 }
 
-// ---- Libera a vaga pública e a trava semanal do sócio referentes a um agendamento ----
+// Libera vaga e trava semanal de um agendamento
 async function liberarVagaEBloqueio(ag){
   try{
-    // acha e apaga o(s) documento(s) de "vagas" que batem com esse serviço/data/horário
     const q = window.fbQuery(
       window.fbCollection(window.db, 'vagas'),
       window.fbWhere('servico', '==', ag.servico),
@@ -559,7 +547,6 @@ async function liberarVagaEBloqueio(ag){
     console.error('Erro ao liberar vaga pública:', e);
   }
   try{
-    // se esse agendamento tinha um sócio vinculado, libera só a trava DESSE serviço (os outros continuam livres)
     if(ag.uid){
       const configKey = containerIdParaConfigKey(ag.servico);
       const bloqueioRef = window.fbDoc(window.db, 'meus-agendamentos', ag.uid);
@@ -567,11 +554,9 @@ async function liberarVagaEBloqueio(ag){
       if(bloqueioSnap.exists()){
         const dadosAtuais = bloqueioSnap.data();
         const trava = dadosAtuais[configKey];
-        // só mexe se for a trava referente a ESSE agendamento (evita apagar um agendamento novo por engano)
         if(trava && trava.data === ag.data && trava.horario === ag.horario){
           const outrasChaves = Object.keys(dadosAtuais).filter(k => k !== configKey);
           if(outrasChaves.length === 0){
-            // não sobra trava de nenhum outro serviço: apaga o documento inteiro, não deixa ele vazio
             await window.fbDeleteDoc(bloqueioRef);
           } else {
             await window.fbUpdateDoc(bloqueioRef, { [configKey]: window.fbDeleteField() });
@@ -584,7 +569,7 @@ async function liberarVagaEBloqueio(ag){
   }
 }
 
-// ---- Quando o admin edita data/horário/serviço, libera o antigo e trava o novo ----
+// Edição: libera o horário antigo e trava o novo
 async function sincronizarVagaEBloqueio(original, novo){
   await liberarVagaEBloqueio(original);
   try{
@@ -599,7 +584,7 @@ async function sincronizarVagaEBloqueio(original, novo){
     if(original.uid){
       const configKeyNovo = containerIdParaConfigKey(novo.servico);
       const semanaKeyNovo = computeWeekStartStr(novo.data);
-      const duracaoSemanas = configKeyNovo === 'manicure' ? 2 : 1; // manicure: semana agendada + a seguinte
+      const duracaoSemanas = configKeyNovo === 'manicure' ? 2 : 1;
       const liberaEmDate = new Date(semanaKeyNovo + 'T00:00:00');
       liberaEmDate.setDate(liberaEmDate.getDate() + 7 * duracaoSemanas);
       await window.fbSetDoc(window.fbDoc(window.db, 'meus-agendamentos', original.uid), {
@@ -616,9 +601,9 @@ async function sincronizarVagaEBloqueio(original, novo){
   }
 }
 
-// =====================================================================
-// ABA CONFIG DE DIAS — quais dias da semana cada serviço aceita agendamento
-// =====================================================================
+// ============================================================
+// DIAS DE ATENDIMENTO
+// ============================================================
 const SERVICOS_CONFIG = [
   { key: 'manicure', label: 'Manicure', temNoite: false },
   { key: 'massagem', label: 'Massagem', temNoite: true }
@@ -708,9 +693,9 @@ document.getElementById('btnSalvarConfig').addEventListener('click', async () =>
   }
 });
 
-// =====================================================================
-// ABA SÓCIOS CADASTRADOS — lista, e permite excluir o perfil (Firestore)
-// =====================================================================
+// ============================================================
+// SÓCIOS
+// ============================================================
 document.getElementById('btnCarregarSocios').addEventListener('click', async () => {
   const btn = document.getElementById('btnCarregarSocios');
   btn.disabled = true;
@@ -760,7 +745,7 @@ function renderSociosTable(socios){
       if(!confirm('Excluir o perfil desse sócio (nome e crachá salvos)? Isso NÃO apaga a conta de login — veja o aviso no topo da página sobre isso.')) return;
       try{
         await window.fbDeleteDoc(window.fbDoc(window.db, 'socios', uid));
-        await window.fbDeleteDoc(window.fbDoc(window.db, 'meus-agendamentos', uid)).catch(() => {}); // limpa a trava também, se existir
+        await window.fbDeleteDoc(window.fbDoc(window.db, 'meus-agendamentos', uid)).catch(() => {});
         row.remove();
       }catch(e){
         console.error('Erro ao excluir perfil do sócio:', e);
@@ -770,9 +755,9 @@ function renderSociosTable(socios){
   });
 }
 
-// =====================================================================
-// ABA MANUTENÇÃO — apaga agendamentos/vagas antigos em lote
-// =====================================================================
+// ============================================================
+// MANUTENÇÃO
+// ============================================================
 document.getElementById('btnLimparAntigos').addEventListener('click', async () => {
   const dias = parseInt(document.querySelector('input[name="dias-corte"]:checked').value, 10);
   const msg = document.getElementById('limpezaMsg');
@@ -789,7 +774,6 @@ document.getElementById('btnLimparAntigos').addEventListener('click', async () =
   msg.textContent = '';
 
   try{
-    // apaga de "agendamentos"
     const qAgendamentos = window.fbQuery(
       window.fbCollection(window.db, 'agendamentos'),
       window.fbWhere('data', '<', corteStr)
@@ -797,7 +781,6 @@ document.getElementById('btnLimparAntigos').addEventListener('click', async () =
     const snapAgendamentos = await window.fbGetDocs(qAgendamentos);
     await Promise.all(snapAgendamentos.docs.map(d => window.fbDeleteDoc(d.ref)));
 
-    // apaga de "vagas"
     const qVagas = window.fbQuery(
       window.fbCollection(window.db, 'vagas'),
       window.fbWhere('data', '<', corteStr)
@@ -818,14 +801,13 @@ document.getElementById('btnLimparAntigos').addEventListener('click', async () =
   btn.textContent = 'Apagar registros antigos';
 });
 
-// =====================================================================
-// ABA SOLICITAÇÕES — pedidos de associação vindos do botão "Quero ser sócio"
-// =====================================================================
+// ============================================================
+// SOLICITAÇÕES
+// ============================================================
 function escutarSolicitacoes(){
   window.fbOnSnapshot(window.fbCollection(window.db, 'solicitacoes-socio'), (snapshot) => {
     const solicitacoes = [];
     snapshot.forEach(d => solicitacoes.push(Object.assign({ id: d.id }, d.data())));
-    // pendentes primeiro, depois mais recentes primeiro
     solicitacoes.sort((a, b) => {
       if((a.status === 'pendente') !== (b.status === 'pendente')) return a.status === 'pendente' ? -1 : 1;
       return (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0);
@@ -890,14 +872,9 @@ function renderSolicitacoes(solicitacoes){
   });
 }
 
-// (chamada real acontece dentro de mostrarPainel, só depois do login confirmado)
-
-// =====================================================================
-// ABA DASHBOARD — visão geral do mês e da semana
-// =====================================================================
-// Mesmos horários definidos no script.js do site público. Se os horários dos
-// serviços mudarem lá, precisam ser atualizados aqui também (não é lido de um lugar só
-// porque cada página carrega seu próprio script, sem módulo compartilhado entre elas).
+// ============================================================
+// DASHBOARD
+// ============================================================
 const SERVICOS_HORARIOS = {
   'cal-manicure': {
     label: 'Manicure',
@@ -918,8 +895,7 @@ function primeiroEUltimoDiaDoMes(){
   return { inicio: formatDateStr(primeiro), fim: formatDateStr(ultimo) };
 }
 
-// Quantas vagas (dia + noite, se aplicável) um serviço oferece num dia específico,
-// considerando dias de atendimento, bloqueio manual e o dia da semana com horário de noite.
+// Vagas oferecidas por serviço em um dia
 function capacidadeDoDia(servicoKey, date, dateStr, cfg){
   if(cfg.bloqueadoAte && dateStr <= cfg.bloqueadoAte) return 0;
   const weekday = date.getDay();
@@ -941,7 +917,6 @@ async function carregarDashboard(){
   btn.textContent = 'Carregando...';
 
   try{
-    // ---- Agendamentos do mês (total + por serviço) ----
     const { inicio: inicioMes, fim: fimMes } = primeiroEUltimoDiaDoMes();
     const qMes = window.fbQuery(
       window.fbCollection(window.db, 'agendamentos'),
@@ -957,7 +932,6 @@ async function carregarDashboard(){
       if(porServicoMes[s] !== undefined) porServicoMes[s]++;
     });
 
-    // ---- Capacidade x ocupação da semana atual, por serviço ----
     const { inicio: inicioSemana, fim: fimSemana } = getSemanaAtual();
     const hoje = todayDateOnly();
     const configs = {};
@@ -966,7 +940,6 @@ async function carregarDashboard(){
       const snap = await window.fbGetDoc(window.fbDoc(window.db, 'config', configKey));
       configs[key] = snap.exists() ? snap.data() : {};
     }
-    // valores padrão caso ainda não tenha sido configurado no Firestore
     if(!('openWeekdays' in configs['cal-manicure'])) configs['cal-manicure'].openWeekdays = [3,5];
     if(!('openWeekdays' in configs['cal-massage'])) configs['cal-massage'].openWeekdays = [1,4];
 
@@ -995,7 +968,6 @@ async function carregarDashboard(){
       'cal-massage': Math.max(0, capacidadeSemana['cal-massage'] - ocupadasSemana['cal-massage'])
     };
 
-    // ---- Solicitações pendentes (bônus rápido) ----
     const snapSolicitacoes = await window.fbGetDocs(window.fbCollection(window.db, 'solicitacoes-socio'));
     let pendentes = 0;
     snapSolicitacoes.forEach(d => { if(d.data().status === 'pendente') pendentes++; });

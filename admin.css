@@ -1,11 +1,11 @@
-/* ===== PAINEL ADMIN — dashboard com sidebar, reaproveitando as variáveis do style.css ===== */
+/* ===== PAINEL ADMIN ===== */
 
 .admin-body{
   background:var(--bg);
   min-height:100vh;
 }
 
-/* ---- Tela de login ---- */
+/* ===== LOGIN ===== */
 .admin-login-screen{
   min-height:100vh;
   display:flex;
@@ -25,7 +25,7 @@
   display:block;
 }
 
-/* ---- Layout geral: sidebar + conteúdo ---- */
+/* ===== LAYOUT ===== */
 .admin-shell{
   display:flex;
   min-height:100vh;
@@ -133,7 +133,7 @@
   text-align:center;
 }
 
-/* ---- Cabeçalho de cada seção ---- */
+/* ===== CABEÇALHO DE SEÇÃO ===== */
 .admin-section-head{
   display:flex;
   align-items:flex-start;
@@ -177,7 +177,7 @@
   background:var(--green-light);
 }
 
-/* ---- Lista de eventos (admin) ---- */
+/* ===== EVENTOS ===== */
 .admin-events-list{
   display:flex;
   flex-direction:column;
@@ -269,7 +269,7 @@
   min-width:110px;
 }
 
-/* ---- Botões de ação (salvar/excluir), reaproveitados em vários lugares ---- */
+/* ===== BOTÕES ===== */
 .admin-btn-salvar, .admin-btn-salvar-linha{
   background:var(--green-deep);
   color:#fff;
@@ -299,7 +299,7 @@
   background:#FDF1EF;
 }
 
-/* ---- Tabelas (agendamentos / sócios) ---- */
+/* ===== TABELAS ===== */
 .admin-table-wrap{
   overflow-x:auto;
   background:#fff;
@@ -357,7 +357,7 @@
   font-size:12px;
 }
 
-/* ---- Config de dias de atendimento ---- */
+/* ===== DIAS DE ATENDIMENTO ===== */
 .admin-config-grid{
   display:flex;
   flex-direction:column;
@@ -404,7 +404,7 @@
   font-weight:700;
 }
 
-/* ---- Responsivo ---- */
+/* ===== RESPONSIVO ===== */
 @media (max-width:900px){
   .admin-shell{
     flex-direction:column;
@@ -448,7 +448,7 @@
   }
 }
 
-/* ---- Agrupamento de agendamentos por data e depois por serviço ---- */
+/* ===== AGENDAMENTOS AGRUPADOS ===== */
 .admin-agenda-data-bloco{
   margin-bottom:32px;
 }
@@ -514,7 +514,7 @@
   color:#0B6B4D;
 }
 
-/* ---- Dashboard ---- */
+/* ===== DASHBOARD ===== */
 .admin-dashboard-grid{
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));

@@ -1,5 +1,6 @@
-// ---- Proteção contra XSS: texto vindo de sócios (nome) ou do admin (eventos) sempre passa por aqui
-// antes de virar HTML, senão dá pra injetar código malicioso via um nome de cadastro ou evento.
+// ============================================================
+// UTILITÁRIOS
+// ============================================================
 function escapeHtml(valor){
   const div = document.createElement('div');
   div.textContent = valor === undefined || valor === null ? '' : String(valor);
@@ -9,7 +10,9 @@ function escapeAttr(valor){
   return escapeHtml(valor).replace(/"/g, '&quot;');
 }
 
-// ---- Mobile nav toggle ----
+// ============================================================
+// NAVEGAÇÃO MOBILE
+// ============================================================
   const navToggle = document.getElementById('navToggle');
   const mainNav = document.getElementById('mainNav');
   navToggle.addEventListener('click', () => {
@@ -17,26 +20,22 @@ function escapeAttr(valor){
     navToggle.setAttribute('aria-expanded', open);
   });
 
-  // ==================================================================
-  // ---- Login de sócios (crachá + PIN) via Firebase Auth ----
-  // ==================================================================
-  window.socioAtual = null; // { uid, cracha, nome } quando logado, null quando não
+  // ============================================================
+  // LOGIN DE SÓCIOS (CRACHÁ + PIN)
+  // ============================================================
+  window.socioAtual = null;
 
   function montarEmailSintetico(cracha){
     return `${cracha}@socios.gremio-miracema.local`;
   }
   function montarSenhaFirebase(pin){
-    // Firebase exige senha com pelo menos 6 caracteres; o PIN de 6 dígitos já atende isso sozinho
     return pin;
   }
 
-  // ---- Limite de tentativas de PIN (por crachá, guardado no navegador) ----
-  // ATENÇÃO: isso é um freio de uso, não uma barreira de segurança de verdade. Vive no localStorage,
-  // então quem limpar os dados do site ou chamar a API do Firebase direto escapa dele. A proteção
-  // real contra força bruta vem do bloqueio do próprio Firebase (auth/too-many-requests) e do App Check.
+  // Limite de PIN: freio de uso (localStorage), não é proteção real. O bloqueio real vem do Firebase Auth e do App Check.
   const TENTATIVAS_KEY = 'miracema-tentativas-pin';
   const MAX_TENTATIVAS_PIN = 5;
-  const MINUTOS_BLOQUEIO = [5, 15, 60]; // cada novo bloqueio dura mais que o anterior
+  const MINUTOS_BLOQUEIO = [5, 15, 60];
 
   function lerTentativas(){
     try{ return JSON.parse(localStorage.getItem(TENTATIVAS_KEY)) || {}; }
@@ -85,12 +84,9 @@ function escapeAttr(valor){
     try{
       await window.fbSignIn(window.auth, email, senha);
       limparFalhasPin(cracha);
-      // login OK — o onAuthStateChanged cuida do resto
     }catch(errLogin){
-      // o próprio Firebase já bloqueou este aparelho/IP por excesso de tentativas
       if(errLogin.code === 'auth/too-many-requests') throw new Error(MSG_MUITAS_REQUISICOES);
 
-      // pode ser primeiro acesso (conta não existe) OU PIN errado — tenta criar a conta pra descobrir qual é
       try{
         const cred = await window.fbCreateUser(window.auth, email, senha);
         await window.fbSetDoc(window.fbDoc(window.db, 'socios', cred.user.uid), {
@@ -99,11 +95,9 @@ function escapeAttr(valor){
           criadoEm: window.fbServerTimestamp()
         });
         limparFalhasPin(cracha);
-        // conta criada com sucesso = era primeiro acesso mesmo — o onAuthStateChanged cuida do resto
       }catch(errCadastro){
         if(errCadastro.code === 'auth/too-many-requests') throw new Error(MSG_MUITAS_REQUISICOES);
         if(errCadastro.code === 'auth/email-already-in-use'){
-          // a conta existe e o PIN não bateu: só aqui conta como tentativa errada
           const reg = registrarFalhaPin(cracha);
           const minutos = minutosRestantesDeBloqueio(cracha);
           if(minutos > 0){
@@ -138,7 +132,7 @@ function escapeAttr(valor){
 
   function iniciarAuthListener(){
     if(!window.auth){
-      setTimeout(iniciarAuthListener, 200); // Firebase ainda carregando
+      setTimeout(iniciarAuthListener, 200);
       return;
     }
     window.fbOnAuthStateChanged(window.auth, async (user) => {
@@ -162,7 +156,7 @@ function escapeAttr(valor){
   }
   iniciarAuthListener();
 
-  // ---- Máscara e validação do formulário de login ----
+  // Máscara e validação do formulário
   document.getElementById('loginCracha').addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
   });
@@ -193,7 +187,9 @@ function escapeAttr(valor){
     btn.textContent = 'Entrar';
   });
 
-  // ---- Modal "Sobre o Grêmio Recreativo" (botão "Quero ser sócio") ----
+  // ============================================================
+  // MODAIS DE ASSOCIAÇÃO
+  // ============================================================
   function ensureSocioModal(){
     if(document.getElementById('socioModalOverlay')) return;
     const overlay = document.createElement('div');
@@ -223,7 +219,6 @@ function escapeAttr(valor){
     });
   }
 
-  // ---- Modal com o formulário de solicitação de associação (salvo no Firestore pro admin revisar) ----
   function ensureSolicitacaoModal(){
     if(document.getElementById('solicitacaoModalOverlay')) return;
     const overlay = document.createElement('div');
@@ -335,11 +330,12 @@ function escapeAttr(valor){
     });
   }
 
-  // ---- News ticker: próximos eventos do grêmio (gerado a partir dos cards de eventos) ----
+  // ============================================================
+  // TICKER DE EVENTOS
+  // ============================================================
   const track = document.getElementById('tickerTrack');
 
   function parseEventDateAndDetail(timeStr){
-    // separa a data do resto da string, ex: "02 AGO · 19h — Salão Social" ou "22 AGO — Sala de Jogos"
     const dotIndex = timeStr.indexOf('·');
     const dashIndex = timeStr.indexOf('—');
     let cutIndex = -1;
@@ -365,30 +361,27 @@ function escapeAttr(valor){
           <span><strong>${escapeHtml(ev.title)}</strong>${detail ? ' — ' + escapeHtml(detail) : ''}</span>
         </div>`;
     }).join('');
-    // repete o suficiente pra sempre ter ~6 itens rolando, senão com pouco evento a repetição fica óbvia
     const vezes = Math.max(2, Math.ceil(6 / eventCards.length));
     track.innerHTML = itemHtml.repeat(vezes);
   }
 
-  // ---- Persistência dos agendamentos (Firestore, em tempo real) ----
-  // "vagas" = coleção pública, só trava o horário (sem dados pessoais) — o calendário lê daqui
-  // "agendamentos" = coleção privada, com nome/contato/crachá — só admin autenticado consegue ler
-  let bookingsCache = {}; // cópia local da coleção "vagas", mantida em sincronia com o Firestore
-  const calendarRenderers = []; // cada calendário registra sua função de render aqui
+  // ============================================================
+  // AGENDAMENTOS (FIRESTORE)
+  // ============================================================
+  let bookingsCache = {};
+  const calendarRenderers = [];
 
-  // ---- Controle de "já agendou": trava só o serviço que a pessoa agendou, não os outros ----
-  // Um documento por sócio, com uma chave por serviço: { manicure: {...} | ausente, massagem: {...} | ausente }
+  // Trava por sócio e por serviço (meus-agendamentos)
   let meuAgendamentoCache = {};
   let unsubscribeMeuAgendamento = null;
 
   function computeWeekStartStr(dateStr){
     const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() - d.getDay()); // volta até domingo daquela semana
+    d.setDate(d.getDate() - d.getDay());
     return formatDateStr(d);
   }
 
-  // ---- Quantas semanas a trava dura pra cada serviço. Manicure: a semana agendada + a seguinte (2).
-  // Os outros serviços (ex: massagem) seguem o padrão de 1 semana só. ----
+  // Duração da trava: manicure 2 semanas, demais 1
   function getDuracaoBloqueioSemanas(configKey){
     return configKey === 'manicure' ? 2 : 1;
   }
@@ -411,9 +404,8 @@ function escapeAttr(valor){
     const info = meuAgendamentoCache ? meuAgendamentoCache[configKey] : null;
     if(!info) return null;
     const semanaAtual = computeWeekStartStr(formatDateStr(todayDateOnly()));
-    // "liberaEm" é a semana em que a trava deixa de valer; dados antigos sem esse campo usam semanaKey (1 semana só)
     const limite = info.liberaEm || info.semanaKey;
-    return (semanaAtual < limite) ? info : null; // expira sozinho quando a semana de liberação chega
+    return (semanaAtual < limite) ? info : null;
   }
 
   async function setMeuAgendamento(configKey, info){
@@ -425,25 +417,21 @@ function escapeAttr(valor){
     const liberaEm = formatDateStr(liberaEmDate);
     const completo = Object.assign({}, info, { semanaKey, liberaEm });
     await window.fbSetDoc(window.fbDoc(window.db, 'meus-agendamentos', window.socioAtual.uid), { [configKey]: completo }, { merge: true });
-    // o onSnapshot acima já detecta e atualiza sozinho, sem precisar chamar render() aqui
   }
 
   function loadBookings(){
-    return bookingsCache; // sempre lê da cópia local (atualizada pelo listener abaixo)
+    return bookingsCache;
   }
 
   async function saveBooking(containerId, dateStr, time, dados){
     const criadoEm = window.fbServerTimestamp();
     const uid = window.socioAtual ? window.socioAtual.uid : null;
-    // momento exato do horário escolhido (não é "agora": é a data+hora da própria vaga).
-    // As regras do Firestore comparam isso com request.time (relógio do servidor) pra travar
-    // agendamento retroativo de verdade, sem depender do relógio do computador de quem agenda.
+    // Validado pelas Rules contra request.time (bloqueia agendamento retroativo)
     const timestampAgendamento = window.fbTimestamp.fromDate(new Date(`${dateStr}T${time}:00`));
-    // ID determinístico: duas pessoas tentando o mesmo horário caem no MESMO documento,
-    // então a transação abaixo consegue detectar o conflito de verdade (não só no cache local)
+    // ID serviço__data__horário: a transação detecta conflito
     const vagaId = `${containerId}__${dateStr}__${time.replace(':', '')}`;
     const vagaRef = window.fbDoc(window.db, 'vagas', vagaId);
-    const agendamentoRef = window.fbDoc(window.fbCollection(window.db, 'agendamentos')); // gera um ID novo, ainda não grava
+    const agendamentoRef = window.fbDoc(window.fbCollection(window.db, 'agendamentos'));
 
     await window.fbRunTransaction(window.db, async (transaction) => {
       const vagaSnap = await transaction.get(vagaRef);
@@ -471,15 +459,14 @@ function escapeAttr(valor){
         criadoEm
       });
     });
-    // não precisa atualizar bookingsCache na mão: o onSnapshot abaixo detecta e já atualiza sozinho
   }
 
   function iniciarEscutaAgendamentos(){
     if(!window.db){
-      setTimeout(iniciarEscutaAgendamentos, 200); // Firebase ainda carregando, tenta de novo
+      setTimeout(iniciarEscutaAgendamentos, 200);
       return;
     }
-    const ref = window.fbCollection(window.db, 'vagas'); // lê da coleção pública (sem dados pessoais)
+    const ref = window.fbCollection(window.db, 'vagas');
     window.fbOnSnapshot(ref, (snapshot) => {
       const novoCache = {};
       snapshot.forEach(doc => {
@@ -489,12 +476,14 @@ function escapeAttr(valor){
         novoCache[d.servico][d.data][d.horario] = { taken: true };
       });
       bookingsCache = novoCache;
-      calendarRenderers.forEach(fn => fn()); // re-renderiza os calendários com os dados atualizados
+      calendarRenderers.forEach(fn => fn());
     });
   }
   iniciarEscutaAgendamentos();
 
-  // ---- Modal de dados + termo de agendamento ----
+  // ============================================================
+  // MODAL DE AGENDAMENTO
+  // ============================================================
   function ensureBookingModal(){
     if(document.getElementById('bookingModalOverlay')) return;
     const overlay = document.createElement('div');
@@ -538,7 +527,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
     });
     document.getElementById('bookingContato').addEventListener('input', (e) => {
-      let numeros = e.target.value.replace(/\D/g, '').slice(0, 11); // só dígitos, no máximo 11 (DDD + 9 dígitos)
+      let numeros = e.target.value.replace(/\D/g, '').slice(0, 11);
       let formatado = numeros;
       if(numeros.length > 0) formatado = '(' + numeros.slice(0, 2);
       if(numeros.length >= 3) formatado += ') ' + numeros.slice(2, 7);
@@ -590,7 +579,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }
   }
 
-  // ---- Popup verde de confirmação ----
+  // Popup de confirmação
   function showSuccessToast(mensagem, tipo){
     let toast = document.getElementById('successToast');
     if(!toast){
@@ -602,7 +591,6 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     toast.className = isErro ? 'success-toast success-toast-erro' : 'success-toast';
     toast.innerHTML = `<span class="success-toast-icon">${isErro ? '!' : '✓'}</span><span>${escapeHtml(mensagem)}</span>`;
     toast.classList.remove('show');
-    // força reflow para reiniciar a animação se já estava visível
     void toast.offsetWidth;
     toast.classList.add('show');
     clearTimeout(toast._hideTimer);
@@ -611,7 +599,9 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }, 3200);
   }
 
-  // ---- Cards de eventos (vêm do Firestore, editáveis pelo painel admin) ----
+  // ============================================================
+  // CARDS DE EVENTOS
+  // ============================================================
   let eventCards = [];
 
   function iniciarEscutaEventos(){
@@ -624,7 +614,6 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
       snapshot.forEach(doc => {
         eventCards.push(Object.assign({ id: doc.id }, doc.data()));
       });
-      // respeita a ordem definida pelo admin; eventos antigos sem esse campo vão pro final
       eventCards.sort((a, b) => (a.ordem ?? 999999) - (b.ordem ?? 999999));
       renderEventCards();
       renderTicker();
@@ -656,7 +645,6 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     });
   }
 
-  // ---- Modal simples do evento (mesma estilização do modal de agendamento) ----
   function ensureEventLinkModal(){
     if(document.getElementById('eventLinkModalOverlay')) return;
     const overlay = document.createElement('div');
@@ -708,9 +696,9 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }
   }
 
-
-
-  // ---- Calendars ----
+  // ============================================================
+  // CALENDÁRIO
+  // ============================================================
   const DOW = ["D","S","T","Q","Q","S","S"];
   const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
@@ -740,7 +728,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
       const ehHoje = dateStr === formatDateStr(agora);
       const horaAgora = String(agora.getHours()).padStart(2,'0') + ':' + String(agora.getMinutes()).padStart(2,'0');
       return (template || []).map(time => {
-        const jaPassou = ehHoje && time <= horaAgora; // só efeito visual; quem trava de verdade são as regras do Firestore
+        const jaPassou = ehHoje && time <= horaAgora;
         return { time, taken: !!savedDay[time] || jaPassou };
       });
     }
@@ -748,19 +736,19 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
       return getSlotsFromTemplate(config.slotsTemplate, dateStr);
     }
     function getNoiteSlotsForDate(dateStr){
-      if(config.diaNoite === undefined || config.diaNoite === null) return []; // sem dia de noite configurado
+      if(config.diaNoite === undefined || config.diaNoite === null) return [];
       const weekday = new Date(dateStr + 'T00:00:00').getDay();
-      if(weekday !== config.diaNoite) return []; // só mostra noite no dia escolhido pelo admin
+      if(weekday !== config.diaNoite) return [];
       return getSlotsFromTemplate(config.slotsNoite, dateStr);
     }
 
     function dayStatus(date, dateStr){
       const today = todayDateOnly();
-      if(date < today) return "past"; // dias anteriores a hoje: sempre indisponíveis
-      if(config.bloqueadoAte && dateStr <= config.bloqueadoAte) return "closed"; // bloqueio temporário definido pelo admin
+      if(date < today) return "past";
+      if(config.bloqueadoAte && dateStr <= config.bloqueadoAte) return "closed";
       const endOfWeek = new Date(today);
-      endOfWeek.setDate(today.getDate() + (6 - today.getDay())); // sábado da semana vigente
-      if(date > endOfWeek) return "closed"; // além da semana atual: travado
+      endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+      if(date > endOfWeek) return "closed";
       const weekday = date.getDay();
       if(!(config.openWeekdays || []).includes(weekday)) return "closed";
       const slots = getSlotsForDate(dateStr).concat(getNoiteSlotsForDate(dateStr));
@@ -787,7 +775,6 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
       const startDow = firstWeekday(y,m);
       const todayStr = formatDateStr(todayDateOnly());
 
-      // se o dia selecionado ficou no passado (ex: virou meia-noite com o modal aberto), limpa a seleção
       if(state.selected && state.selected < todayStr){
         state.selected = null;
         state.selectedTime = null;
@@ -909,9 +896,9 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }
 
     render();
-    calendarRenderers.push(render); // permite que o listener do Firestore atualize esse calendário
+    calendarRenderers.push(render);
 
-    // ---- Dias de atendimento (e dia de horário noturno, quando aplicável) vêm do Firestore ----
+    // Dias de atendimento vindos do Firestore
     if(config.configKey){
       (function escutarConfigServico(){
         if(!window.db){ setTimeout(escutarConfigServico, 200); return; }
@@ -919,14 +906,14 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
           if(!snap.exists()) return;
           const dados = snap.data();
           if(Array.isArray(dados.openWeekdays)) config.openWeekdays = dados.openWeekdays;
-          if('diaNoite' in dados) config.diaNoite = dados.diaNoite; // null = sem horário de noite
-          if('bloqueadoAte' in dados) config.bloqueadoAte = dados.bloqueadoAte; // null = sem bloqueio temporário
+          if('diaNoite' in dados) config.diaNoite = dados.diaNoite;
+          if('bloqueadoAte' in dados) config.bloqueadoAte = dados.bloqueadoAte;
           render();
         });
       })();
     }
 
-    // ---- Atualização automática: se a aba ficar aberta e o dia virar (meia-noite), recalcula sozinho ----
+    // Recalcula ao virar o dia
     setInterval(() => {
       const currentToday = formatDateStr(todayDateOnly());
       if(currentToday !== lastKnownToday){
@@ -936,7 +923,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     }, 60000);
   }
 
-  // Manicure: quarta e sexta (valor padrão até o painel admin definir outro) — sem horário de noite
+  // Manicure: sem horário noturno
   buildCalendar('cal-manicure', {
     serviceName: 'Manicure',
     configKey: 'manicure',
@@ -944,7 +931,7 @@ Em caso de não comparecimento sem cancelamento prévio, será devida uma restit
     slotsTemplate: ["11:00","11:30","12:00","12:30","13:00","13:30"]
   });
 
-  // Massagem: terça e quinta (valor padrão até o painel admin definir outro); horário de noite só no dia escolhido no admin
+  // Massagem: noite apenas no dia definido pelo admin
   buildCalendar('cal-massage', {
     serviceName: 'Massagem',
     configKey: 'massagem',
